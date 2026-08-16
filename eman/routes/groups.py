@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from eman.db import fetch_or_404, get_db, now_iso
+from eman.deletion import cascade_delete
 from eman.serialize import group_dict
 from eman.tags import set_tags
 
@@ -63,3 +64,10 @@ def update_group(gid: int, body: GroupPatch, db=Depends(get_db)):
         set_tags(db, "group", gid, "evaluation", data["evaluation_tags"])
     db.commit()
     return group_dict(db, fetch_or_404(db, "grp", gid))
+
+
+@router.delete("/groups/{gid}")
+def delete_group(gid: int, db=Depends(get_db)):
+    fetch_or_404(db, "grp", gid)
+    cascade_delete(db, "group", gid)
+    return {"deleted": True}

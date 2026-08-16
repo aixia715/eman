@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from eman.db import fetch_or_404, get_db, now_iso
+from eman.deletion import cascade_delete
 from eman.serialize import attempt_dict
 from eman.tags import set_tags
 
@@ -40,3 +41,10 @@ def update_attempt(aid: int, body: AttemptPatch, db=Depends(get_db)):
         set_tags(db, "attempt", aid, "evaluation", data["evaluation_tags"])
     db.commit()
     return attempt_dict(db, fetch_or_404(db, "attempt", aid))
+
+
+@router.delete("/attempts/{aid}")
+def delete_attempt(aid: int, db=Depends(get_db)):
+    fetch_or_404(db, "attempt", aid)
+    cascade_delete(db, "attempt", aid)
+    return {"deleted": True}

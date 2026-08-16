@@ -53,3 +53,14 @@ def make_group(client, make_run):
         assert r.status_code == 201, r.text
         return r.json()
     return _make
+
+
+@pytest.fixture()
+def make_attempt(client, make_group):
+    def _make(group_id=None):
+        if group_id is None:
+            group_id = make_group()["id"]
+        r = client.post(f"/api/groups/{group_id}/attempts")
+        assert r.status_code == 201, r.text
+        return r.json()
+    return _make

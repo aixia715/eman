@@ -10,6 +10,7 @@ from eman.routes import experiments as experiments_routes
 from eman.routes import runs as runs_routes
 from eman.routes import tags as tags_routes
 from eman.routes import groups as groups_routes
+from eman.routes import attempts as attempts_routes
 
 
 def create_app(db_path: str = "eman.db") -> FastAPI:
@@ -41,5 +42,6 @@ def create_app(db_path: str = "eman.db") -> FastAPI:
     app.include_router(runs_routes.router, prefix="/api")
     app.include_router(tags_routes.router, prefix="/api")
     app.include_router(groups_routes.router, prefix="/api")
+    app.include_router(attempts_routes.router, prefix="/api")
 
     return app

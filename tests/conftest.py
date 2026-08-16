@@ -27,3 +27,14 @@ def make_experiment(client):
         assert r.status_code == 201, r.text
         return r.json()
     return _make
+
+
+@pytest.fixture()
+def make_run(client, make_experiment):
+    def _make(experiment_id=None, name="第一次执行"):
+        if experiment_id is None:
+            experiment_id = make_experiment()["id"]
+        r = client.post(f"/api/experiments/{experiment_id}/runs", json={"name": name})
+        assert r.status_code == 201, r.text
+        return r.json()
+    return _make

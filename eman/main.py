@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from eman.db import connect
 from eman.routes import experiments as experiments_routes
+from eman.routes import runs as runs_routes
 from eman.routes import tags as tags_routes
 
 
@@ -36,6 +37,7 @@ def create_app(db_path: str = "eman.db") -> FastAPI:
 
     # 路由在后续任务中逐个挂载到这里（保持在静态托管 mount 之前）
     app.include_router(experiments_routes.router, prefix="/api")
+    app.include_router(runs_routes.router, prefix="/api")
     app.include_router(tags_routes.router, prefix="/api")
 
     return app

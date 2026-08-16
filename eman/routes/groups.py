@@ -31,12 +31,10 @@ def new_group_template(rid: int, db=Depends(get_db)):
 @router.post("/runs/{rid}/groups", status_code=201)
 def create_group(rid: int, body: GroupIn, db=Depends(get_db)):
     fetch_or_404(db, "run", rid)
-    seq = db.execute("SELECT COALESCE(MAX(seq_no),0)+1 AS s FROM grp WHERE run_id=?",
-                     (rid,)).fetchone()["s"]
     cur = db.execute(
         "INSERT INTO grp (run_id, seq_no, variable_values, created_at) "
-        "VALUES (?,?,?,?)",
-        (rid, seq, json.dumps(body.variable_values, ensure_ascii=False), now_iso()))
+        "SELECT ?, COALESCE(MAX(seq_no),0)+1, ?, ? FROM grp WHERE run_id=?",
+        (rid, json.dumps(body.variable_values, ensure_ascii=False), now_iso(), rid))
     db.commit()
     return group_dict(db, fetch_or_404(db, "grp", cur.lastrowid))
 

@@ -17,13 +17,11 @@ class AttemptPatch(BaseModel):
 @router.post("/groups/{gid}/attempts", status_code=201)
 def create_attempt(gid: int, db=Depends(get_db)):
     fetch_or_404(db, "grp", gid)
-    seq = db.execute(
-        "SELECT COALESCE(MAX(seq_no),0)+1 AS s FROM attempt WHERE group_id=?",
-        (gid,)).fetchone()["s"]
     now = now_iso()
     cur = db.execute(
         "INSERT INTO attempt (group_id, seq_no, started_at, created_at) "
-        "VALUES (?,?,?,?)", (gid, seq, now, now))
+        "SELECT ?, COALESCE(MAX(seq_no),0)+1, ?, ? FROM attempt WHERE group_id=?",
+        (gid, now, now, gid))
     db.commit()
     return attempt_dict(db, fetch_or_404(db, "attempt", cur.lastrowid))
 

@@ -55,3 +55,17 @@ def test_get_missing_experiment_404(client):
     r = client.get("/api/experiments/42")
     assert r.status_code == 404
     assert "不存在" in r.json()["error"]
+
+
+def test_patch_explicit_null_fields_are_ignored(client, make_experiment):
+    exp = make_experiment()
+    r = client.patch(f"/api/experiments/{exp['id']}", json={
+        "evaluation_tags": None,
+        "independent_vars": None,
+        "purpose": "新目的",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["purpose"] == "新目的"
+    assert body["independent_vars"] == [{"name": "温度/℃", "default": "25"}]
+    assert body["evaluation_tags"] == []

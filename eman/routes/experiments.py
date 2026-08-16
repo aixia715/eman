@@ -95,7 +95,9 @@ def get_experiment(eid: int, db=Depends(get_db)):
 @router.patch("/experiments/{eid}")
 def update_experiment(eid: int, body: ExperimentPatch, db=Depends(get_db)):
     fetch_or_404(db, "experiment", eid)
-    data = body.model_dump(exclude_unset=True)
+    # 显式 null 视为"未提供"：过滤 None，防止 set_tags(None) 崩溃或 json.dumps(None) 写库
+    data = {k: v for k, v in body.model_dump(exclude_unset=True).items()
+            if v is not None}
     updates = {k: data[k] for k in ("name", "purpose", "method", "conclusion")
                if k in data}
     if "independent_vars" in data:

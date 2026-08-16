@@ -38,3 +38,18 @@ def make_run(client, make_experiment):
         assert r.status_code == 201, r.text
         return r.json()
     return _make
+
+
+@pytest.fixture()
+def make_group(client, make_run):
+    def _make(run_id=None, variable_values=None):
+        if run_id is None:
+            run_id = make_run()["id"]
+        if variable_values is None:
+            variable_values = client.get(
+                f"/api/runs/{run_id}/new-group-template").json()["variable_values"]
+        r = client.post(f"/api/runs/{run_id}/groups",
+                        json={"variable_values": variable_values})
+        assert r.status_code == 201, r.text
+        return r.json()
+    return _make

@@ -14,12 +14,23 @@ def create_app(db_path: str = "eman.db") -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request, exc):
-        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+        detail = exc.detail
+        if detail in (None, "Not Found"):
+            detail = "路径或资源不存在"
+        elif detail == "Method Not Allowed":
+            detail = "不支持该请求方法"
+        return JSONResponse(status_code=exc.status_code, content={"error": detail})
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request, exc):
-        msg = exc.errors()[0].get("msg", "输入无效") if exc.errors() else "输入无效"
-        return JSONResponse(status_code=422, content={"error": msg})
+        if exc.errors():
+            first = exc.errors()[0]
+            msg = str(first.get("msg", "")).removeprefix("Value error, ")
+            loc = ".".join(str(p) for p in first.get("loc", []) if p != "body")
+            error = f"输入无效：{loc}：{msg}" if loc else f"输入无效：{msg}"
+        else:
+            error = "输入无效"
+        return JSONResponse(status_code=422, content={"error": error})
 
     # 路由在后续任务中逐个挂载到这里（保持在静态托管 mount 之前）
 

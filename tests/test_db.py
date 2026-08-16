@@ -17,4 +17,4 @@ def test_create_app_serves_unified_error(client):
     r = client.get("/api/experiments/999999")
     # 路由尚未实现时是 404，但必须已经是统一错误格式（由全局异常处理器保证）
     assert r.status_code == 404
-    assert "error" in r.json()
+    assert r.json()["error"] == "路径或资源不存在"

@@ -15,6 +15,6 @@ def test_foreign_keys_enabled():
 
 def test_create_app_serves_unified_error(client):
     r = client.get("/api/experiments/999999")
-    # 路由尚未实现时是 404，但必须已经是统一错误格式（由全局异常处理器保证）
+    # 实验路由已实现，返回更详细的错误信息
     assert r.status_code == 404
-    assert r.json()["error"] == "路径或资源不存在"
+    assert "不存在" in r.json()["error"]

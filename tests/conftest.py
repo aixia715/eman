@@ -9,3 +9,21 @@ def client():
     app = create_app(":memory:")
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture()
+def make_experiment(client):
+    def _make(**over):
+        body = {
+            "name": "示例实验",
+            "purpose": "验证输出随温度的变化",
+            "method": "控制变量法",
+            "independent_vars": [{"name": "温度/℃", "default": "25"}],
+            "dependent_vars": ["电压/V"],
+            "category_tags": ["示例"],
+        }
+        body.update(over)
+        r = client.post("/api/experiments", json=body)
+        assert r.status_code == 201, r.text
+        return r.json()
+    return _make

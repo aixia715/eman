@@ -1,6 +1,8 @@
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 # 注意：处理器必须注册在 Starlette 的 HTTPException 上——路由未匹配的 404 抛的是
 # 这个父类，注册在 fastapi.HTTPException（子类）上不会命中它
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -43,5 +45,8 @@ def create_app(db_path: str = "eman.db") -> FastAPI:
     app.include_router(tags_routes.router, prefix="/api")
     app.include_router(groups_routes.router, prefix="/api")
     app.include_router(attempts_routes.router, prefix="/api")
+
+    static_dir = Path(__file__).resolve().parent.parent / "static"
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     return app

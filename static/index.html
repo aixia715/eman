@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>eman — 实验数据管理</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="toast" class="toast hidden"></div>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <button id="btn-new-experiment" class="primary">＋ 新建实验</button>
+      <div id="tag-filter" class="tag-filter"></div>
+    </div>
+    <nav id="tree" class="tree"><p class="placeholder">加载中…</p></nav>
+  </aside>
+  <main id="detail" class="detail">
+    <p class="placeholder">选择左侧节点查看详情</p>
+  </main>
+</div>
+<datalist id="tag-options"></datalist>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request
 
@@ -66,7 +66,8 @@ def connect(db_path: str) -> sqlite3.Connection:
 
 
 def now_iso() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    # 存 UTC 且带偏移量，前端按浏览器本地时区换算显示
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def get_db(request: Request) -> sqlite3.Connection:

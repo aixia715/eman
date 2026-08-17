@@ -35,6 +35,17 @@ function titleOf(type, obj) {
   return (type === 'experiment' || type === 'run') ? obj.name : `#${obj.seq_no}`;
 }
 
+function formatDateTime(value) {
+  if (!value) return value;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+}
+
 function fieldRow(dl, label, value) {
   dl.appendChild(el('dt', null, label));
   dl.appendChild(el('dd', null,
@@ -178,23 +189,23 @@ function renderView(ctx, root, type, obj) {
     chipList(dl, '分类标签', obj.category_tags);
     fieldRow(dl, '结论', obj.conclusion);
     chipList(dl, '评价标签', obj.evaluation_tags);
-    fieldRow(dl, '创建时间', obj.created_at);
-    fieldRow(dl, '更新时间', obj.updated_at);
+    fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
+    fieldRow(dl, '更新时间', formatDateTime(obj.updated_at));
   } else if (type === 'run') {
     fieldRow(dl, '名称', obj.name);
     fieldRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
-    fieldRow(dl, '创建时间', obj.created_at);
+    fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
   } else if (type === 'group') {
     fieldRow(dl, '序号', '#' + obj.seq_no);
     fieldRow(dl, '自变量取值', Object.entries(obj.variable_values || {})
       .map(([k, v]) => `${k} = ${v}`).join('；'));
     fieldRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
-    fieldRow(dl, '创建时间', obj.created_at);
+    fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
   } else {
     fieldRow(dl, '编号', '#' + obj.seq_no);
-    fieldRow(dl, '开始时间', obj.started_at);
+    fieldRow(dl, '开始时间', formatDateTime(obj.started_at));
     fieldRow(dl, '数据目录', obj.data_path);
     fieldRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);

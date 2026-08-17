@@ -63,7 +63,7 @@ button { font: inherit; cursor: pointer; }
 .fields dt { color: #666; }
 .fields dd { margin: 0; white-space: pre-wrap; word-break: break-all; }
 .actions { margin-top: 18px; display: flex; gap: 8px; }
-.actions button {
+.actions button:not(.primary) {
   border: 1px solid #d1d5db; background: #fff; border-radius: 6px;
   padding: 5px 12px;
 }

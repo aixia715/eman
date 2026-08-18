@@ -97,3 +97,17 @@ form textarea { min-height: 72px; }
 }
 /* 大截图不能撑破右栏布局 */
 .markdown img { max-width: 100%; height: auto; display: block; }
+
+.md-field { display: flex; flex-direction: column; gap: .3em; }
+.md-head { display: flex; justify-content: space-between; align-items: center; }
+.md-tabs button {
+  padding: .1em .6em; font-size: .85em; background: #eee;
+  border: 1px solid #ccc; cursor: pointer;
+}
+.md-tabs button.active { background: #fff; font-weight: 600; }
+.md-input { min-height: 8em; font-family: inherit; }
+.md-preview {
+  min-height: 8em; border: 1px solid #ccc; border-radius: 4px; padding: .5em;
+  background: #fff;
+}
+.hidden { display: none; }

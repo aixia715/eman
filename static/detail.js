@@ -1,5 +1,5 @@
 import API from './api.js';
-import { renderMarkdown } from './markdown.js';
+import { markdownField, renderMarkdown } from './markdown.js';
 
 const DEL_PATH = { experiment: '/experiments/', run: '/runs/',
                    group: '/groups/', attempt: '/attempts/' };
@@ -300,7 +300,9 @@ function experimentForm(ctx, root, obj) {
   labeled(form, '分类标签', cat.el);
   let conclusion, evalTags;
   if (!creating) {
-    conclusion = labeled(form, '结论', textArea(obj.conclusion));
+    conclusion = markdownField('结论', obj.conclusion, 'experiment', obj.id,
+                               ctx.showToast);
+    form.appendChild(conclusion.el);
     evalTags = tagEditor(obj.evaluation_tags);
     labeled(form, '评价标签', evalTags.el);
   }
@@ -316,7 +318,7 @@ function experimentForm(ctx, root, obj) {
       category_tags: cat.get(),
     };
     if (!creating) {
-      body.conclusion = conclusion.value;
+      body.conclusion = conclusion.get();
       body.evaluation_tags = evalTags.get();
     }
     try {
@@ -334,7 +336,8 @@ function runForm(ctx, root, parentId, obj) {
   const name = labeled(form, '名称 *', textInput(obj ? obj.name : ''));
   let summary, evalTags;
   if (!creating) {
-    summary = labeled(form, '摘要', textArea(obj.summary));
+    summary = markdownField('摘要', obj.summary, 'run', obj.id, ctx.showToast);
+    form.appendChild(summary.el);
     evalTags = tagEditor(obj.evaluation_tags);
     labeled(form, '评价标签', evalTags.el);
   }
@@ -350,7 +353,7 @@ function runForm(ctx, root, parentId, obj) {
       } else {
         saved = await API.patch('/runs/' + obj.id, {
           name: name.value.trim(),
-          summary: summary.value,
+          summary: summary.get(),
           evaluation_tags: evalTags.get(),
         });
       }
@@ -393,7 +396,9 @@ function groupEditForm(ctx, root, obj) {
     labeled(form, k, input);
     return [k, input];
   });
-  const summary = labeled(form, '摘要（综合各 Attempt 的结果）', textArea(obj.summary));
+  const summary = markdownField('摘要（综合各 Attempt 的结果）', obj.summary,
+                                'group', obj.id, ctx.showToast);
+  form.appendChild(summary.el);
   const evalTags = tagEditor(obj.evaluation_tags);
   labeled(form, '评价标签', evalTags.el);
   buttons(form, '保存', () => cancelForm(ctx));
@@ -404,7 +409,7 @@ function groupEditForm(ctx, root, obj) {
     try {
       await API.patch('/groups/' + obj.id, {
         variable_values: vv,
-        summary: summary.value,
+        summary: summary.get(),
         evaluation_tags: evalTags.get(),
       });
       await commitAndShow(ctx, 'group', obj.id);
@@ -414,8 +419,11 @@ function groupEditForm(ctx, root, obj) {
 
 function attemptEditForm(ctx, root, obj) {
   const form = formShell(root, `编辑 Attempt #${obj.seq_no}`, submit);
-  const dataPath = labeled(form, '数据保存目录', textInput(obj.data_path));
-  const summary = labeled(form, '结果摘要', textArea(obj.summary));
+  const dataPath = labeled(form,
+    '数据保存目录（大体积原始数据放这里，应用只记路径）', textInput(obj.data_path));
+  const summary = markdownField('测试结果（支持 Markdown，可直接粘贴截图）',
+                                obj.summary, 'attempt', obj.id, ctx.showToast);
+  form.appendChild(summary.el);
   const evalTags = tagEditor(obj.evaluation_tags);
   labeled(form, '评价标签', evalTags.el);
   buttons(form, '保存', () => cancelForm(ctx));
@@ -424,7 +432,7 @@ function attemptEditForm(ctx, root, obj) {
     try {
       const saved = await API.patch('/attempts/' + obj.id, {
         data_path: dataPath.value,
-        summary: summary.value,
+        summary: summary.get(),
         evaluation_tags: evalTags.get(),
       });
       await commitAndShowAttempt(ctx, saved);

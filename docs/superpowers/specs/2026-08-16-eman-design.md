@@ -34,7 +34,7 @@
 - 结构化因变量数值录入与作图。
 - 按自变量值筛选/排序。
 - 全文搜索。
-- 数据文件上传/托管/存在性校验（仅记录路径字符串）。
+- ~~数据文件上传/托管/存在性校验（仅记录路径字符串）~~ —— 已由 `2026-08-18-attempt-result-attachments-design.md` 推翻：附件改为应用托管（SQLite BLOB），但大体积原始数据仍只记录路径。
 - 多用户、登录、权限。
 - 修改历史/审计日志。
 
@@ -89,6 +89,8 @@
 | data_path | TEXT NULL | 数据保存目录（仅字符串） |
 | summary | TEXT NULL | 结果摘要 |
 | created_at | TEXT | |
+
+> 结果记录已扩展，见 `2026-08-18-attempt-result-attachments-design.md`：`summary` 语义改为 Markdown 源文本，并新增 `attachment` / `attachment_blob` 两张表（四级多态关联）。
 
 ### tag
 | 字段 | 类型 | 说明 |

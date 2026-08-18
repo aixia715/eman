@@ -166,3 +166,29 @@ def test_deleting_experiment_cascades_to_all_descendant_attachments(
     assert _counts(client) == (4, 4)
     assert client.delete(f"/api/experiments/{eid}").status_code == 200
     assert _counts(client) == (0, 0)
+
+
+def test_references_counts_body_usages(client, make_attempt):
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments").json()
+    url = f"/api/attachments/{att['id']}"
+    assert client.get(f"{url}/references").json() == {"count": 0}
+
+    client.patch(f"/api/attempts/{a['id']}",
+                 json={"summary": f"见 ![]({url}) 和 ![]({url})"})
+    assert client.get(f"{url}/references").json() == {"count": 2}
+
+
+def test_references_ignores_longer_id_prefix(client, make_attempt):
+    """正文引用 /api/attachments/<id>0 不能算作对 <id> 的引用。"""
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments").json()
+    aid = att["id"]
+    client.patch(f"/api/attempts/{a['id']}",
+                 json={"summary": f"![](/api/attachments/{aid}0)"})
+    assert client.get(f"/api/attachments/{aid}/references").json() == {"count": 0}
+
+
+def test_references_missing_attachment_404(client):
+    r = client.get("/api/attachments/999/references")
+    assert r.status_code == 404

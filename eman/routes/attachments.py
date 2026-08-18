@@ -4,7 +4,7 @@ from fastapi import (APIRouter, Depends, File, HTTPException, Request,
                      UploadFile)
 from fastapi.responses import StreamingResponse
 
-from eman.attachments import create_attachment, read_blob
+from eman.attachments import count_references, create_attachment, read_blob
 from eman.db import fetch_or_404, get_db
 
 router = APIRouter()
@@ -106,3 +106,10 @@ def delete_attachment(aid: int, db=Depends(get_db)):
     db.execute("DELETE FROM attachment WHERE id=?", (aid,))
     db.commit()
     return {"deleted": True}
+
+
+@router.get("/attachments/{aid}/references")
+def attachment_references(aid: int, db=Depends(get_db)):
+    """返回该附件在四级正文 Markdown 中被引用的处数，供前端删除前警告。"""
+    fetch_or_404(db, "attachment", aid)
+    return {"count": count_references(db, aid)}

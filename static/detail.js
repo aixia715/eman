@@ -1,4 +1,5 @@
 import API from './api.js';
+import { renderMarkdown } from './markdown.js';
 
 const DEL_PATH = { experiment: '/experiments/', run: '/runs/',
                    group: '/groups/', attempt: '/attempts/' };
@@ -50,6 +51,14 @@ function fieldRow(dl, label, value) {
   dl.appendChild(el('dt', null, label));
   dl.appendChild(el('dd', null,
     value === null || value === undefined || value === '' ? '—' : String(value)));
+}
+
+function mdRow(dl, label, text) {
+  dl.appendChild(el('dt', null, label));
+  const dd = el('dd');
+  if (text === null || text === undefined || text === '') dd.textContent = '—';
+  else dd.appendChild(renderMarkdown(text));
+  dl.appendChild(dd);
 }
 
 function chipList(dl, label, tags) {
@@ -187,27 +196,27 @@ function renderView(ctx, root, type, obj) {
       .map(v => `${v.name}（默认 ${v.default || '—'}）`).join('；'));
     fieldRow(dl, '因变量', (obj.dependent_vars || []).join('；'));
     chipList(dl, '分类标签', obj.category_tags);
-    fieldRow(dl, '结论', obj.conclusion);
+    mdRow(dl, '结论', obj.conclusion);
     chipList(dl, '评价标签', obj.evaluation_tags);
     fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
     fieldRow(dl, '更新时间', formatDateTime(obj.updated_at));
   } else if (type === 'run') {
     fieldRow(dl, '名称', obj.name);
-    fieldRow(dl, '摘要', obj.summary);
+    mdRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
     fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
   } else if (type === 'group') {
     fieldRow(dl, '序号', '#' + obj.seq_no);
     fieldRow(dl, '自变量取值', Object.entries(obj.variable_values || {})
       .map(([k, v]) => `${k} = ${v}`).join('；'));
-    fieldRow(dl, '摘要', obj.summary);
+    mdRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
     fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
   } else {
     fieldRow(dl, '编号', '#' + obj.seq_no);
     fieldRow(dl, '开始时间', formatDateTime(obj.started_at));
     fieldRow(dl, '数据目录', obj.data_path);
-    fieldRow(dl, '摘要', obj.summary);
+    mdRow(dl, '测试结果', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
   }
   root.appendChild(dl);

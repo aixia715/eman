@@ -76,3 +76,24 @@ form input, form textarea {
 form textarea { min-height: 72px; }
 .var-row { display: flex; gap: 6px; margin-bottom: 6px; max-width: 560px; }
 .tag-editor .chips { margin-bottom: 4px; }
+
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown h1, .markdown h2, .markdown h3 { margin: .6em 0 .3em; }
+.markdown p { margin: .4em 0; }
+.markdown ul, .markdown ol { margin: .4em 0; padding-left: 1.4em; }
+.markdown code {
+  background: #f2f2f2; padding: .1em .3em; border-radius: 3px;
+  font-size: .92em;
+}
+.markdown pre {
+  background: #f2f2f2; padding: .6em; border-radius: 4px; overflow-x: auto;
+}
+.markdown pre code { background: none; padding: 0; }
+.markdown table { border-collapse: collapse; margin: .4em 0; }
+.markdown th, .markdown td { border: 1px solid #ccc; padding: .25em .5em; }
+.markdown blockquote {
+  margin: .4em 0; padding-left: .7em; border-left: 3px solid #ccc; color: #555;
+}
+/* 大截图不能撑破右栏布局 */
+.markdown img { max-width: 100%; height: auto; display: block; }

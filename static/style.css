@@ -111,3 +111,12 @@ form textarea { min-height: 72px; }
   background: #fff;
 }
 .hidden { display: none; }
+
+.attachments { margin-top: 1em; }
+.attachments h3 { margin: 0 0 .3em; font-size: 1em; }
+.attachment-list { list-style: none; margin: .4em 0; padding: 0; }
+.attachment-list li {
+  display: flex; align-items: center; gap: .5em; padding: .2em 0;
+}
+.attachment-size { color: #777; font-size: .85em; }
+.attachment-list button { font-size: .85em; padding: .1em .5em; }

@@ -1,5 +1,6 @@
 import API from './api.js';
 import { markdownField, renderMarkdown } from './markdown.js';
+import { attachmentSection } from './attachments.js';
 
 const DEL_PATH = { experiment: '/experiments/', run: '/runs/',
                    group: '/groups/', attempt: '/attempts/' };
@@ -220,6 +221,19 @@ function renderView(ctx, root, type, obj) {
     chipList(dl, '评价标签', obj.evaluation_tags);
   }
   root.appendChild(dl);
+
+  root.appendChild(attachmentSection(ctx, type, obj, async () => {
+    // Attempt 的数据内嵌在其 Group 详情里，必须刷新 Group 才能拿到新附件列表
+    if (type === 'attempt') {
+      await ctx.fetchDetail('group', obj.group_id, true);
+      await ctx.refreshAll();
+      await ctx.select('attempt', obj.id);
+    } else {
+      ctx.state.details.delete(ctx.key(type, obj.id));
+      await ctx.refreshAll();
+      await ctx.select(type, obj.id);
+    }
+  }));
 
   const bar = el('div', 'actions');
   if (type === 'group') {

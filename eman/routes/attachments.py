@@ -97,3 +97,12 @@ def download_attachment(aid: int, db=Depends(get_db)):
             "Content-Length": str(row["size"]),
             "X-Content-Type-Options": "nosniff",
         })
+
+
+@router.delete("/attachments/{aid}")
+def delete_attachment(aid: int, db=Depends(get_db)):
+    fetch_or_404(db, "attachment", aid)
+    # attachment_blob 行由外键 ON DELETE CASCADE 自动消失
+    db.execute("DELETE FROM attachment WHERE id=?", (aid,))
+    db.commit()
+    return {"deleted": True}

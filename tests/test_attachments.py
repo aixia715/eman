@@ -119,3 +119,50 @@ def test_download_missing_404(client):
     r = client.get("/api/attachments/999")
     assert r.status_code == 404
     assert "不存在" in r.json()["error"]
+
+
+def _counts(client):
+    db = client.app.state.db
+    return (db.execute("SELECT COUNT(*) c FROM attachment").fetchone()["c"],
+            db.execute("SELECT COUNT(*) c FROM attachment_blob").fetchone()["c"])
+
+
+def test_delete_single_attachment(client, make_attempt):
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments").json()
+    assert _counts(client) == (1, 1)
+    r = client.delete(f"/api/attachments/{att['id']}")
+    assert r.status_code == 200 and r.json() == {"deleted": True}
+    assert _counts(client) == (0, 0)
+    assert client.get(f"/api/groups/{a['group_id']}").json(
+        )["attempts"][0]["attachments"] == []
+
+
+def test_delete_missing_attachment_404(client):
+    r = client.delete("/api/attachments/999")
+    assert r.status_code == 404
+    assert "不存在" in r.json()["error"]
+
+
+def test_deleting_attempt_removes_its_attachments(client, make_attempt):
+    a = make_attempt()
+    _upload(client, f"/api/attempts/{a['id']}/attachments")
+    assert _counts(client) == (1, 1)
+    assert client.delete(f"/api/attempts/{a['id']}").status_code == 200
+    assert _counts(client) == (0, 0)
+
+
+def test_deleting_experiment_cascades_to_all_descendant_attachments(
+        client, make_attempt):
+    """四级各挂一个附件，删掉根实验后一个都不许剩。"""
+    a = make_attempt()
+    grp = client.get(f"/api/groups/{a['group_id']}").json()
+    run = client.get(f"/api/runs/{grp['run_id']}").json()
+    eid = run["experiment_id"]
+    _upload(client, f"/api/experiments/{eid}/attachments")
+    _upload(client, f"/api/runs/{run['id']}/attachments")
+    _upload(client, f"/api/groups/{grp['id']}/attachments")
+    _upload(client, f"/api/attempts/{a['id']}/attachments")
+    assert _counts(client) == (4, 4)
+    assert client.delete(f"/api/experiments/{eid}").status_code == 200
+    assert _counts(client) == (0, 0)

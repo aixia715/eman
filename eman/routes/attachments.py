@@ -1,7 +1,10 @@
+from urllib.parse import quote
+
 from fastapi import (APIRouter, Depends, File, HTTPException, Request,
                      UploadFile)
+from fastapi.responses import StreamingResponse
 
-from eman.attachments import create_attachment
+from eman.attachments import create_attachment, read_blob
 from eman.db import fetch_or_404, get_db
 
 router = APIRouter()
@@ -69,3 +72,28 @@ def upload_to_group(gid: int, request: Request,
 def upload_to_attempt(aid: int, request: Request,
                       file: UploadFile = File(...), db=Depends(get_db)):
     return _create(request, db, "attempt", aid, file)
+
+
+# 只有这些类型允许浏览器内联展示；其余一律强制下载，
+# 否则用户自己上传的 .html 会在同源下执行脚本
+INLINE_PREFIXES = ("image/",)
+INLINE_EXACT = ("application/pdf", "text/plain")
+
+
+@router.get("/attachments/{aid}")
+def download_attachment(aid: int, db=Depends(get_db)):
+    row = fetch_or_404(db, "attachment", aid)
+    mime = row["mime"]
+    inline = mime.startswith(INLINE_PREFIXES) or mime in INLINE_EXACT
+    # RFC 5987 编码，避免中文文件名让响应头编码失败
+    encoded = quote(row["filename"])
+    return StreamingResponse(
+        read_blob(db, aid),
+        media_type=mime,
+        headers={
+            "Content-Disposition":
+                f"{'inline' if inline else 'attachment'};"
+                f" filename*=UTF-8''{encoded}",
+            "Content-Length": str(row["size"]),
+            "X-Content-Type-Options": "nosniff",
+        })

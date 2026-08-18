@@ -1,7 +1,5 @@
 import io
 
-import pytest
-
 from eman.routes import attachments as attachments_routes
 
 PNG = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 40   # 含非 UTF-8 字节
@@ -74,3 +72,50 @@ def test_upload_to_missing_parent_404(client):
         r = _upload(client, path)
         assert r.status_code == 404, path
         assert "不存在" in r.json()["error"]
+
+
+def test_download_roundtrip_is_byte_identical(client, make_attempt):
+    a = make_attempt()
+    big = bytes(range(256)) * 12000            # 跨多个 1 MB 分块
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments",
+                  name="big.bin", data=big,
+                  mime="application/octet-stream").json()
+    r = client.get(f"/api/attachments/{att['id']}")
+    assert r.status_code == 200
+    assert r.content == big
+
+
+def test_download_headers_inline_for_images(client, make_attempt):
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments").json()
+    r = client.get(f"/api/attachments/{att['id']}")
+    assert r.headers["content-type"].startswith("image/png")
+    assert r.headers["content-disposition"].startswith("inline")
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_download_forces_attachment_for_html(client, make_attempt):
+    """自己上传的 .html 不能在同源下被内联执行。"""
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments",
+                  name="evil.html", data=b"<script>alert(1)</script>",
+                  mime="text/html").json()
+    r = client.get(f"/api/attachments/{att['id']}")
+    assert r.headers["content-disposition"].startswith("attachment")
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_download_encodes_chinese_filename(client, make_attempt):
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments",
+                  name="示波器截图.png").json()
+    r = client.get(f"/api/attachments/{att['id']}")
+    # RFC 5987：非 ASCII 文件名必须百分号编码，否则响应头无法用 latin-1 发送
+    assert "filename*=UTF-8''" in r.headers["content-disposition"]
+    assert "%E7%A4%BA" in r.headers["content-disposition"]
+
+
+def test_download_missing_404(client):
+    r = client.get("/api/attachments/999")
+    assert r.status_code == 404
+    assert "不存在" in r.json()["error"]

@@ -19,6 +19,10 @@ TOO_LARGE = "附件超过 50 MB 上限，大文件请放入数据目录"
 
 
 def _max_request_bytes() -> int:
+    # 注意：这里挡不住"读盘前"——file: UploadFile 是 FastAPI 的依赖项，进入本函数
+    # 之前 multipart 请求体已被完整解析并落盘（超阈值会落到 /tmp 的
+    # SpooledTemporaryFile）。这条粗筛唯一省下的是后续的 DB 写入等操作，本版对超
+    # 大请求体并没有真正的前置防线，依赖的是"本机单用户"这一使用前提。
     # Content-Length 含 multipart 边界开销，是真实文件大小的上界；
     # 留 1 MB 余量，避免误杀恰好接近上限的文件
     return MAX_ATTACHMENT_BYTES + (1 << 20)
@@ -78,13 +82,26 @@ def upload_to_attempt(aid: int, request: Request,
 # 否则用户自己上传的 .html 会在同源下执行脚本
 INLINE_PREFIXES = ("image/",)
 INLINE_EXACT = ("application/pdf", "text/plain")
+# image/svg+xml 虽以 image/ 开头，但 SVG 可内嵌 <script>；
+# 作为顶层文档打开（前端附件列表的文件名链接就是 target="_blank" 直开）
+# 时脚本会在同源下执行，因此必须从 inline 白名单里单独排除，强制走 attachment 下载
+SVG_MIME = "image/svg+xml"
+
+
+def _is_inline(mime: str) -> bool:
+    # 浏览器/客户端可能带 `; charset=...` 等参数，只用基础类型判定白名单，
+    # 否则如 "text/plain; charset=utf-8" 会因为精确匹配失败而误判为 attachment
+    base = mime.split(";")[0].strip()
+    if base == SVG_MIME:
+        return False
+    return base.startswith(INLINE_PREFIXES) or base in INLINE_EXACT
 
 
 @router.get("/attachments/{aid}")
 def download_attachment(aid: int, db=Depends(get_db)):
     row = fetch_or_404(db, "attachment", aid)
     mime = row["mime"]
-    inline = mime.startswith(INLINE_PREFIXES) or mime in INLINE_EXACT
+    inline = _is_inline(mime)
     # RFC 5987 编码，避免中文文件名让响应头编码失败
     encoded = quote(row["filename"])
     return StreamingResponse(
@@ -96,6 +113,10 @@ def download_attachment(aid: int, db=Depends(get_db)):
                 f" filename*=UTF-8''{encoded}",
             "Content-Length": str(row["size"]),
             "X-Content-Type-Options": "nosniff",
+            # 白名单之外一律强制下载，这条 CSP 对将来放宽白名单（或白名单判定
+            # 本身出现疏漏）也有兜底作用：即便被当成顶层文档打开，也不允许执行
+            # 脚本、加载子资源
+            "Content-Security-Policy": "default-src 'none'; sandbox",
         })
 
 

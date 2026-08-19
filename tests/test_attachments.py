@@ -105,6 +105,19 @@ def test_download_forces_attachment_for_html(client, make_attempt):
     assert r.headers["x-content-type-options"] == "nosniff"
 
 
+def test_download_forces_attachment_for_svg(client, make_attempt):
+    """SVG 虽是 image/* 但可内嵌脚本，作为顶层文档打开时会在同源下执行。"""
+    a = make_attempt()
+    att = _upload(client, f"/api/attempts/{a['id']}/attachments",
+                  name="evil.svg",
+                  data=b"<svg xmlns='http://www.w3.org/2000/svg'>"
+                       b"<script>alert(1)</script></svg>",
+                  mime="image/svg+xml").json()
+    r = client.get(f"/api/attachments/{att['id']}")
+    assert r.headers["content-disposition"].startswith("attachment")
+    assert r.headers["content-security-policy"] == "default-src 'none'; sandbox"
+
+
 def test_download_encodes_chinese_filename(client, make_attempt):
     a = make_attempt()
     att = _upload(client, f"/api/attempts/{a['id']}/attachments",

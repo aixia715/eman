@@ -1,5 +1,6 @@
 import API from './api.js';
 import { renderDetail } from './detail.js';
+import './theme.js';
 
 export const state = {
   experiments: [],

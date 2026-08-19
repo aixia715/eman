@@ -193,8 +193,12 @@ DELETE FROM attachment WHERE entity_type=? AND entity_id=?
 
 1. 用 `fetch_or_404` 校验父实体存在（表名按端点绑定：`experiment` / `run` /
    `grp` / `attempt`）。
-2. 粗筛大小：`Content-Length` 是**含 multipart 边界开销的上界**，仅用于在读盘前
-   廉价拦截明显超限的请求，阈值取 `50 MB + 1 MB` 余量以免误杀接近上限的文件。
+2. 粗筛大小：`file: UploadFile` 是 FastAPI 的依赖项，进入本函数之前 multipart
+   请求体已被完整解析并落盘（超阈值会落到 /tmp 的 `SpooledTemporaryFile`），
+   因此这一步**不是**读盘前拦截，唯一省下的是后续的 DB 写入等操作。
+   `Content-Length` 是**含 multipart 边界开销的上界**，阈值取 `50 MB + 1 MB`
+   余量以免误杀接近上限的文件；本版对超大请求体没有真正的前置防线，依赖的是
+   "本机单用户"这一使用前提。
 3. 精确校验：对已落盘的 `UploadFile` 用 `seek(0, 2)` 取真实字节数，这是判定准绳。
    超过 50 MB → 413 + `{"error": "附件超过 50 MB 上限，大文件请放入数据目录"}`。
 4. `INSERT INTO attachment(...)` 得到 `rowid`。
@@ -296,10 +300,18 @@ XSS 不构成实际威胁模型。这是有意识的 YAGNI 取舍，记录在此
 第一时间补上。
 
 **附件下载的 MIME 处理**（本次唯一的实质安全措施）：仅对白名单类型
-（`image/*`、`application/pdf`、`text/plain`）使用
+（`image/*` 但**排除 `image/svg+xml`**、`application/pdf`、`text/plain`，判定时
+先取 `;` 前的基础类型以兼容带 `charset` 等参数的 MIME）使用
 `Content-Disposition: inline`，其余一律 `attachment`；并统一附加
-`X-Content-Type-Options: nosniff`。否则用户自己上传的一个 `.html` 附件会在同源下
-执行脚本。文件名按 RFC 5987 编码写入响应头，避免中文名乱码。
+`X-Content-Type-Options: nosniff` 与
+`Content-Security-Policy: default-src 'none'; sandbox`。否则用户自己上传的一个
+`.html` 附件会在同源下执行脚本。SVG 单独排除的原因：SVG 虽是 image 类型，却可
+内嵌 `<script>`，作为顶层文档打开（前端附件列表的文件名链接就是
+`target="_blank"` 直开）时脚本会在同源下执行——这与 §6 开头"内容全部由用户本人
+撰写，不引入 DOMPurify"的取舍前提不同：正文 Markdown 的作者与阅读者是同一个人，
+而附件是唯一进入应用的外部来源文件（例如从别处下载后再上传的 SVG），信任边界不
+一样。CSP 头对将来放宽白名单或判定疏漏也有兜底作用。文件名按 RFC 5987 编码写入
+响应头，避免中文名乱码。
 
 **错误信息**沿用既有约定：`{"error": "人类可读中文信息"}` + 恰当状态码
 （404 附件或父实体不存在、413 超限、422 缺少文件字段）。

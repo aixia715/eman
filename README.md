@@ -21,12 +21,25 @@ python3 -m venv .venv
 
 ## Docker 运行
 
+当前版本 **v0.1.0**（`eman.__version__`，同时作为镜像标签与 FastAPI 文档里的版本号）。
+
+直接拉已发布的镜像：
+
 ```bash
-docker build -t eman .
-docker run -d --name eman -p 8000:8000 -v eman-data:/data eman
+docker run -d --name eman -p 8000:8000 -v eman-data:/data ghcr.io/aixia715/eman:0.1.0
+```
+
+或从源码自建：
+
+```bash
+docker build --build-arg VERSION=0.1.0 -t eman:0.1.0 .
+docker run -d --name eman -p 8000:8000 -v eman-data:/data eman:0.1.0
 ```
 
 或者 `docker compose up -d`（见 `docker-compose.yml`）。
+
+> 镜像由 `.github/workflows/docker-publish.yml` 在推送 `v*` 标签时构建，
+> 推到 `ghcr.io/aixia715/eman`（标签 `0.1.0` / `0.1` / `latest`）。
 
 - 端口：容器内监听 **8000**，`-p 8000:8000` 映射到宿主机，浏览器打开 http://localhost:8000 。
 - 数据库：容器工作目录是 `/data`，SQLite 文件为 **`/data/eman.db`**，

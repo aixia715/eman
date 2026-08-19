@@ -1,6 +1,12 @@
 # eman — 实验数据记录与管理（FastAPI + SQLite）
 FROM python:3.12-slim
 
+ARG VERSION=0.1.0
+LABEL org.opencontainers.image.title="eman" \
+      org.opencontainers.image.description="实验数据记录与管理（FastAPI + SQLite）" \
+      org.opencontainers.image.source="https://github.com/aixia715/eman" \
+      org.opencontainers.image.version="${VERSION}"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app

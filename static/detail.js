@@ -240,7 +240,7 @@ function renderExperimentView(ctx, root, obj) {
   root.appendChild(el('h2', null, `实验：${obj.name}`));
   const dl = el('dl', 'fields');
   fieldRow(dl, '目的', obj.purpose);
-  fieldRow(dl, '方法', obj.method);
+  mdRow(dl, '方法', obj.method);
   fieldRow(dl, '自变量', (obj.independent_vars || [])
     .map(v => `${v.name}（默认 ${v.default || '—'}）`).join('；'));
   fieldRow(dl, '因变量', (obj.dependent_vars || []).join('；'));
@@ -646,7 +646,12 @@ function experimentForm(ctx, root, obj) {
   const form = formShell(root, creating ? '新建实验' : '编辑实验', submit);
   const name = labeled(form, '名称 *', textInput(obj ? obj.name : ''));
   const purpose = labeled(form, '目的', textArea(obj ? obj.purpose : ''));
-  const method = labeled(form, '方法', textArea(obj ? obj.method : ''));
+  const method = markdownField(
+    creating ? '方法（支持 Markdown；创建后可粘贴图片）'
+      : '方法（支持 Markdown，可直接粘贴图片）',
+    obj ? obj.method : '', creating ? null : 'experiment',
+    obj ? obj.id : null, ctx.showToast);
+  form.appendChild(method.el);
   const vars = varsEditor(obj ? obj.independent_vars : []);
   labeled(form, '自变量（名称 + 默认值）', vars.el);
   const dep = labeled(form, '因变量（逗号分隔）',
@@ -668,7 +673,7 @@ function experimentForm(ctx, root, obj) {
     const body = {
       name: name.value.trim(),
       purpose: purpose.value,
-      method: method.value,
+      method: method.get(),
       independent_vars: vars.get(),
       dependent_vars: dep.value.split(/[,，]/).map(s => s.trim()).filter(Boolean),
       category_tags: cat.get(),

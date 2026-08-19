@@ -57,8 +57,9 @@ docker run -d --name eman -p 8000:8000 -v eman-data:/data eman:0.1.0
 
 结果记录分四处，各司其职：
 
-- **结论 / 摘要 / 说明**：Experiment 结论、Run 摘要和 Attempt 说明使用
-  Markdown；编辑时可直接粘贴截图，图片会自动存为附件并插入引用。
+- **方法 / 结论 / 摘要 / 说明**：Experiment 方法与结论、Run 摘要和
+  Attempt 说明使用 Markdown；编辑已有记录时可直接粘贴截图，图片会自动存为
+  附件并插入引用。
 - **测试结果**：Attempt 中按因变量记录的有序键值对；新建时会根据
   Experiment 的因变量自动生成空值行，也可自由增删修改。
 - **附件**：由应用托管的小文件（截图、参数配置、仪器导出的小 csv），

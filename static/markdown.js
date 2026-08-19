@@ -77,7 +77,8 @@ function insertAtCursor(ta, text) {
 
 /**
  * 带「编辑 | 预览」切换的 Markdown 输入框。
- * entityType/entityId 用于粘贴图片时决定附件挂到哪个实体；
+ * entityType/entityId 用于粘贴图片时决定附件挂到哪个实体；二者为空时仍可
+ * 编辑和预览 Markdown，但必须先创建实体才能粘贴图片。
  * onError 用于把上传失败冒泡给调用方（通常是 ctx.showToast）。
  */
 export function markdownField(label, value, entityType, entityId, onError) {
@@ -127,6 +128,10 @@ export function markdownField(label, value, entityType, entityId, onError) {
     const file = item.getAsFile();
     if (!file) return;
     e.preventDefault();
+    if (!entityType || !entityId) {
+      onError('请先创建并保存，再粘贴图片');
+      return;
+    }
     // 用带序号的占位符，避免并发粘贴时替换错位置
     const token = `上传中#${++pasteSeq}`;
     insertAtCursor(ta, `![${token}]()`);

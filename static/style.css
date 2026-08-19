@@ -26,7 +26,7 @@ button { font: inherit; cursor: pointer; }
   background: #b91c1c; color: #fff; padding: 8px 16px;
   border-radius: 6px; z-index: 10; max-width: 80vw;
 }
-.toast.hidden { display: none; }
+/* 显示/隐藏统一走下面的通用 .hidden；toast 本身不再需要单独规则 */
 
 /* 树 */
 .tree ul { list-style: none; margin: 0; padding-left: 16px; }
@@ -76,3 +76,48 @@ form input, form textarea {
 form textarea { min-height: 72px; }
 .var-row { display: flex; gap: 6px; margin-bottom: 6px; max-width: 560px; }
 .tag-editor .chips { margin-bottom: 4px; }
+
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown h1, .markdown h2, .markdown h3 { margin: .6em 0 .3em; }
+.markdown p { margin: .4em 0; }
+.markdown ul, .markdown ol { margin: .4em 0; padding-left: 1.4em; }
+.markdown code {
+  background: #f2f2f2; padding: .1em .3em; border-radius: 3px;
+  font-size: .92em;
+}
+.markdown pre {
+  background: #f2f2f2; padding: .6em; border-radius: 4px; overflow-x: auto;
+}
+.markdown pre code { background: none; padding: 0; }
+.markdown table { border-collapse: collapse; margin: .4em 0; }
+.markdown th, .markdown td { border: 1px solid #ccc; padding: .25em .5em; }
+.markdown blockquote {
+  margin: .4em 0; padding-left: .7em; border-left: 3px solid #ccc; color: #555;
+}
+/* 大截图不能撑破右栏布局 */
+.markdown img { max-width: 100%; height: auto; display: block; }
+
+.md-field { display: flex; flex-direction: column; gap: .3em; }
+.md-head { display: flex; justify-content: space-between; align-items: center; }
+.md-head > span:first-child { color: #666; }
+.md-tabs button {
+  padding: .1em .6em; font-size: .85em; background: #eee;
+  border: 1px solid #ccc; cursor: pointer;
+}
+.md-tabs button.active { background: #fff; font-weight: 600; }
+.md-input { min-height: 8em; font-family: inherit; }
+.md-preview {
+  min-height: 8em; max-width: 560px; border: 1px solid #ccc; border-radius: 4px;
+  padding: .5em; background: #fff;
+}
+.hidden { display: none; }
+
+.attachments { margin-top: 1em; }
+.attachments h3 { margin: 0 0 .3em; font-size: 1em; }
+.attachment-list { list-style: none; margin: .4em 0; padding: 0; }
+.attachment-list li {
+  display: flex; align-items: center; gap: .5em; padding: .2em 0;
+}
+.attachment-size { color: #777; font-size: .85em; }
+.attachment-list button { font-size: .85em; padding: .1em .5em; }

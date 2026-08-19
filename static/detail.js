@@ -1,4 +1,6 @@
 import API from './api.js';
+import { markdownField, renderMarkdown } from './markdown.js';
+import { attachmentSection } from './attachments.js';
 
 const DEL_PATH = { experiment: '/experiments/', run: '/runs/',
                    group: '/groups/', attempt: '/attempts/' };
@@ -50,6 +52,14 @@ function fieldRow(dl, label, value) {
   dl.appendChild(el('dt', null, label));
   dl.appendChild(el('dd', null,
     value === null || value === undefined || value === '' ? '—' : String(value)));
+}
+
+function mdRow(dl, label, text) {
+  dl.appendChild(el('dt', null, label));
+  const dd = el('dd');
+  if (text === null || text === undefined || text === '') dd.textContent = '—';
+  else dd.appendChild(renderMarkdown(text));
+  dl.appendChild(dd);
 }
 
 function chipList(dl, label, tags) {
@@ -187,30 +197,43 @@ function renderView(ctx, root, type, obj) {
       .map(v => `${v.name}（默认 ${v.default || '—'}）`).join('；'));
     fieldRow(dl, '因变量', (obj.dependent_vars || []).join('；'));
     chipList(dl, '分类标签', obj.category_tags);
-    fieldRow(dl, '结论', obj.conclusion);
+    mdRow(dl, '结论', obj.conclusion);
     chipList(dl, '评价标签', obj.evaluation_tags);
     fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
     fieldRow(dl, '更新时间', formatDateTime(obj.updated_at));
   } else if (type === 'run') {
     fieldRow(dl, '名称', obj.name);
-    fieldRow(dl, '摘要', obj.summary);
+    mdRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
     fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
   } else if (type === 'group') {
     fieldRow(dl, '序号', '#' + obj.seq_no);
     fieldRow(dl, '自变量取值', Object.entries(obj.variable_values || {})
       .map(([k, v]) => `${k} = ${v}`).join('；'));
-    fieldRow(dl, '摘要', obj.summary);
+    mdRow(dl, '摘要', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
     fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
   } else {
     fieldRow(dl, '编号', '#' + obj.seq_no);
     fieldRow(dl, '开始时间', formatDateTime(obj.started_at));
     fieldRow(dl, '数据目录', obj.data_path);
-    fieldRow(dl, '摘要', obj.summary);
+    mdRow(dl, '测试结果', obj.summary);
     chipList(dl, '评价标签', obj.evaluation_tags);
   }
   root.appendChild(dl);
+
+  root.appendChild(attachmentSection(ctx, type, obj, async () => {
+    // Attempt 的数据内嵌在其 Group 详情里，必须刷新 Group 才能拿到新附件列表
+    if (type === 'attempt') {
+      await ctx.fetchDetail('group', obj.group_id, true);
+      await ctx.refreshAll();
+      await ctx.select('attempt', obj.id);
+    } else {
+      ctx.state.details.delete(ctx.key(type, obj.id));
+      await ctx.refreshAll();
+      await ctx.select(type, obj.id);
+    }
+  }));
 
   const bar = el('div', 'actions');
   if (type === 'group') {
@@ -291,7 +314,9 @@ function experimentForm(ctx, root, obj) {
   labeled(form, '分类标签', cat.el);
   let conclusion, evalTags;
   if (!creating) {
-    conclusion = labeled(form, '结论', textArea(obj.conclusion));
+    conclusion = markdownField('结论', obj.conclusion, 'experiment', obj.id,
+                               ctx.showToast);
+    form.appendChild(conclusion.el);
     evalTags = tagEditor(obj.evaluation_tags);
     labeled(form, '评价标签', evalTags.el);
   }
@@ -307,7 +332,7 @@ function experimentForm(ctx, root, obj) {
       category_tags: cat.get(),
     };
     if (!creating) {
-      body.conclusion = conclusion.value;
+      body.conclusion = conclusion.get();
       body.evaluation_tags = evalTags.get();
     }
     try {
@@ -325,7 +350,8 @@ function runForm(ctx, root, parentId, obj) {
   const name = labeled(form, '名称 *', textInput(obj ? obj.name : ''));
   let summary, evalTags;
   if (!creating) {
-    summary = labeled(form, '摘要', textArea(obj.summary));
+    summary = markdownField('摘要', obj.summary, 'run', obj.id, ctx.showToast);
+    form.appendChild(summary.el);
     evalTags = tagEditor(obj.evaluation_tags);
     labeled(form, '评价标签', evalTags.el);
   }
@@ -341,7 +367,7 @@ function runForm(ctx, root, parentId, obj) {
       } else {
         saved = await API.patch('/runs/' + obj.id, {
           name: name.value.trim(),
-          summary: summary.value,
+          summary: summary.get(),
           evaluation_tags: evalTags.get(),
         });
       }
@@ -384,7 +410,9 @@ function groupEditForm(ctx, root, obj) {
     labeled(form, k, input);
     return [k, input];
   });
-  const summary = labeled(form, '摘要（综合各 Attempt 的结果）', textArea(obj.summary));
+  const summary = markdownField('摘要（综合各 Attempt 的结果）', obj.summary,
+                                'group', obj.id, ctx.showToast);
+  form.appendChild(summary.el);
   const evalTags = tagEditor(obj.evaluation_tags);
   labeled(form, '评价标签', evalTags.el);
   buttons(form, '保存', () => cancelForm(ctx));
@@ -395,7 +423,7 @@ function groupEditForm(ctx, root, obj) {
     try {
       await API.patch('/groups/' + obj.id, {
         variable_values: vv,
-        summary: summary.value,
+        summary: summary.get(),
         evaluation_tags: evalTags.get(),
       });
       await commitAndShow(ctx, 'group', obj.id);
@@ -405,8 +433,11 @@ function groupEditForm(ctx, root, obj) {
 
 function attemptEditForm(ctx, root, obj) {
   const form = formShell(root, `编辑 Attempt #${obj.seq_no}`, submit);
-  const dataPath = labeled(form, '数据保存目录', textInput(obj.data_path));
-  const summary = labeled(form, '结果摘要', textArea(obj.summary));
+  const dataPath = labeled(form,
+    '数据保存目录（大体积原始数据放这里，应用只记路径）', textInput(obj.data_path));
+  const summary = markdownField('测试结果（支持 Markdown，可直接粘贴截图）',
+                                obj.summary, 'attempt', obj.id, ctx.showToast);
+  form.appendChild(summary.el);
   const evalTags = tagEditor(obj.evaluation_tags);
   labeled(form, '评价标签', evalTags.el);
   buttons(form, '保存', () => cancelForm(ctx));
@@ -415,7 +446,7 @@ function attemptEditForm(ctx, root, obj) {
     try {
       const saved = await API.patch('/attempts/' + obj.id, {
         data_path: dataPath.value,
-        summary: summary.value,
+        summary: summary.get(),
         evaluation_tags: evalTags.get(),
       });
       await commitAndShowAttempt(ctx, saved);

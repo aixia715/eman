@@ -1,6 +1,7 @@
 import json
 import sqlite3
 
+from eman.attachments import list_attachments
 from eman.tags import get_tags
 
 
@@ -18,6 +19,7 @@ def experiment_dict(db: sqlite3.Connection, row: sqlite3.Row,
         "updated_at": row["updated_at"],
         "category_tags": get_tags(db, "experiment", row["id"], "category"),
         "evaluation_tags": get_tags(db, "experiment", row["id"], "evaluation"),
+        "attachments": list_attachments(db, "experiment", row["id"]),
     }
     if include_runs:
         rows = db.execute("SELECT * FROM run WHERE experiment_id=? ORDER BY id",
@@ -35,6 +37,7 @@ def run_dict(db: sqlite3.Connection, row: sqlite3.Row,
         "summary": row["summary"],
         "created_at": row["created_at"],
         "evaluation_tags": get_tags(db, "run", row["id"], "evaluation"),
+        "attachments": list_attachments(db, "run", row["id"]),
     }
     if include_groups:
         rows = db.execute("SELECT * FROM grp WHERE run_id=? ORDER BY seq_no",
@@ -53,6 +56,7 @@ def group_dict(db: sqlite3.Connection, row: sqlite3.Row,
         "summary": row["summary"],
         "created_at": row["created_at"],
         "evaluation_tags": get_tags(db, "group", row["id"], "evaluation"),
+        "attachments": list_attachments(db, "group", row["id"]),
         "attempt_count": db.execute(
             "SELECT COUNT(*) AS c FROM attempt WHERE group_id=?",
             (row["id"],)).fetchone()["c"],
@@ -74,4 +78,5 @@ def attempt_dict(db: sqlite3.Connection, row: sqlite3.Row) -> dict:
         "summary": row["summary"],
         "created_at": row["created_at"],
         "evaluation_tags": get_tags(db, "attempt", row["id"], "evaluation"),
+        "attachments": list_attachments(db, "attempt", row["id"]),
     }

@@ -26,5 +26,9 @@ def cascade_delete(db: sqlite3.Connection, entity_type: str,
     for etype, eid in _collect(db, entity_type, entity_id):
         db.execute("DELETE FROM tag_link WHERE entity_type=? AND entity_id=?",
                    (etype, eid))
+        # attachment.entity_id 与 tag_link 一样不是真外键，必须应用层清理；
+        # attachment_blob 行随 attachment 的外键级联消失
+        db.execute("DELETE FROM attachment WHERE entity_type=? AND entity_id=?",
+                   (etype, eid))
     db.execute(f"DELETE FROM {ENTITY_TABLE[entity_type]} WHERE id=?", (entity_id,))
     db.commit()

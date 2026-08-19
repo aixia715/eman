@@ -50,9 +50,26 @@ CREATE TABLE IF NOT EXISTS tag_link (
     role TEXT NOT NULL,
     UNIQUE(tag_id, entity_type, entity_id, role)
 );
+CREATE TABLE IF NOT EXISTS attachment (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    mime TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS attachment_blob (
+    attachment_id INTEGER PRIMARY KEY
+        REFERENCES attachment(id) ON DELETE CASCADE,
+    data BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_attachment_entity
+    ON attachment(entity_type, entity_id);
 """
 
-TABLE_LABEL = {"experiment": "实验", "run": "Run", "grp": "Group", "attempt": "Attempt"}
+TABLE_LABEL = {"experiment": "实验", "run": "Run", "grp": "Group",
+               "attempt": "Attempt", "attachment": "附件"}
 
 
 def connect(db_path: str) -> sqlite3.Connection:

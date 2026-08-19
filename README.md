@@ -38,8 +38,10 @@ docker run -d --name eman -p 8000:8000 -v eman-data:/data eman:0.1.0
 
 或者 `docker compose up -d`（见 `docker-compose.yml`）。
 
-> 镜像由 `.github/workflows/docker-publish.yml` 在推送 `v*` 标签时构建，
-> 推到 `ghcr.io/aixia715/eman`（标签 `0.1.0` / `0.1` / `latest`）。
+> 镜像由 `.github/workflows/docker-publish.yml` 构建并推到 `ghcr.io/aixia715/eman`
+> （标签 `<version>` / `<major.minor>` / `latest`）。触发方式有两种：推 `v*` 标签，
+> 或在 Actions 页面手动运行。版本号一律取自 `eman.__version__`；推标签时若
+> `vX.Y.Z` 与它对不上，构建会直接失败。
 
 - 端口：容器内监听 **8000**，`-p 8000:8000` 映射到宿主机，浏览器打开 http://localhost:8000 。
 - 数据库：容器工作目录是 `/data`，SQLite 文件为 **`/data/eman.db`**，

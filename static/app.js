@@ -1,5 +1,5 @@
 import API from './api.js';
-import { renderDetail } from './detail.js';
+import { renderDetail, renderDrawer } from './detail.js';
 import './theme.js';
 
 export const state = {
@@ -11,6 +11,9 @@ export const state = {
   allTags: [],
   form: null,           // {type, parentId} 创建表单状态
   editing: false,
+  drawer: null,         // 右侧抽屉：编辑、查看 Attempt 正文或新建 Attempt
+  overviews: new Map(), // experiment id -> Run/Group 组合及全部 Attempt
+  comboFilters: new Map(), // experiment id -> 已勾选的 "runId:groupId"
 };
 
 export const LABEL = { experiment: '实验', run: 'Run', group: 'Group', attempt: 'Attempt' };
@@ -49,6 +52,44 @@ export async function fetchDetail(type, id, force = false) {
   const obj = await API.get(DETAIL_PATH[type] + id);
   state.details.set(k, obj);
   return obj;
+}
+
+export async function loadOverview(experimentId, force = false) {
+  const experiment = await fetchDetail('experiment', experimentId, force);
+  // 后端全进程共用一个 sqlite3.Connection；这里必须顺序读取，避免并发请求
+  // 在同一连接上交错执行而偶发 sqlite3.InterfaceError。
+  const runs = [];
+  for (const run of experiment.runs || []) {
+    runs.push(await fetchDetail('run', run.id, force));
+  }
+  const groupRows = runs.flatMap(run => (run.groups || []).map(group => ({ run, group })));
+  const groups = [];
+  for (const { group } of groupRows) {
+    groups.push(await fetchDetail('group', group.id, force));
+  }
+
+  const combinations = [];
+  const attempts = [];
+  groups.forEach((group, index) => {
+    const run = groupRows[index].run;
+    const comboKey = `${run.id}:${group.id}`;
+    combinations.push({ key: comboKey, run, group });
+    for (const attempt of group.attempts || []) {
+      attempts.push({ attempt, run, group, comboKey });
+    }
+  });
+
+  const overview = { runs, combinations, attempts };
+  state.overviews.set(experimentId, overview);
+  const validKeys = new Set(combinations.map(item => item.key));
+  if (!state.comboFilters.has(experimentId)) {
+    state.comboFilters.set(experimentId, new Set(validKeys));
+  } else {
+    const selected = state.comboFilters.get(experimentId);
+    state.comboFilters.set(experimentId,
+      new Set([...selected].filter(comboKey => validKeys.has(comboKey))));
+  }
+  return overview;
 }
 
 export function getObject(type, id) {
@@ -116,8 +157,10 @@ function renderTree() {
 function renderNode(type, obj) {
   const li = document.createElement('li');
   const row = document.createElement('div');
-  const isSel = state.selected &&
-    state.selected.type === type && state.selected.id === obj.id;
+  const isSel = (state.selected &&
+    state.selected.type === type && state.selected.id === obj.id) ||
+    (state.drawer?.kind === 'edit' &&
+      state.drawer.type === type && state.drawer.id === obj.id);
   row.className = 'node' + (isSel ? ' selected' : '');
 
   if (type !== 'attempt') {
@@ -137,11 +180,13 @@ function renderNode(type, obj) {
   label.textContent = nodeTitle(type, obj);
   row.appendChild(label);
 
-  for (const t of obj.evaluation_tags || []) {
-    const chip = document.createElement('span');
-    chip.className = 'chip chip-eval';
-    chip.textContent = t;
-    row.appendChild(chip);
+  if (type !== 'group') {
+    for (const t of obj.evaluation_tags || []) {
+      const chip = document.createElement('span');
+      chip.className = 'chip chip-eval';
+      chip.textContent = t;
+      row.appendChild(chip);
+    }
   }
   row.onclick = () => select(type, obj.id);
   li.appendChild(row);
@@ -177,41 +222,73 @@ export async function toggleExpand(type, id) {
 
 export async function select(type, id) {
   try {
-    state.selected = { type, id };
-    state.form = null;
-    state.editing = false;
-    if (type !== 'attempt') await fetchDetail(type, id);
+    if (type === 'experiment') {
+      state.selected = { type, id };
+      state.form = null;
+      state.editing = false;
+      state.drawer = null;
+      await loadOverview(id);
+    } else {
+      if (type !== 'attempt') await fetchDetail(type, id);
+      if (!getObject(type, id)) throw new Error(`${LABEL[type]} 数据未加载`);
+      state.drawer = { kind: 'edit', type, id };
+    }
     renderAll();
   } catch (err) { showToast(err.message); }
+}
+
+export function openDrawer(drawer) {
+  state.drawer = drawer;
+  renderAll();
+}
+
+export function closeDrawer() {
+  state.drawer = null;
+  renderAll();
 }
 
 export function renderAll() {
   renderFilter();
   renderTree();
   renderDetail(ctx);
+  renderDrawer(ctx);
 }
 
 export async function refreshAll() {
-  await Promise.all([loadExperiments(), loadTags()]);
+  await loadExperiments();
+  await loadTags();
   // 已展开节点强制重取，保证树上数据新鲜；已被删除的节点自动收起
-  await Promise.all([...state.expanded].map(k => {
+  for (const k of [...state.expanded]) {
     const [type, id] = k.split(':');
-    return fetchDetail(type, Number(id), true)
-      .catch(() => state.expanded.delete(k));
-  }));
+    try {
+      await fetchDetail(type, Number(id), true);
+    } catch {
+      state.expanded.delete(k);
+    }
+  }
+  if (state.selected?.type === 'experiment') {
+    await loadOverview(state.selected.id, true);
+  }
   renderAll();
 }
 
 export const ctx = {
-  state, LABEL, key, getObject, fetchDetail, refreshAll, renderAll,
-  showToast, select,
+  state, LABEL, key, getObject, fetchDetail, loadOverview, refreshAll, renderAll,
+  showToast, select, openDrawer, closeDrawer,
 };
 
 document.getElementById('btn-new-experiment').onclick = () => {
   state.form = { type: 'experiment', parentId: null };
   state.editing = false;
   state.selected = null;
+  state.drawer = null;
   renderAll();
 };
+
+document.getElementById('drawer-backdrop').onclick = closeDrawer;
+document.getElementById('drawer-close').onclick = closeDrawer;
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && state.drawer) closeDrawer();
+});
 
 refreshAll().catch(err => showToast(err.message));

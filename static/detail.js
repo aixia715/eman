@@ -1,6 +1,7 @@
 import API from './api.js';
-import { markdownField, renderMarkdown } from './markdown.js';
+import { markdownField, markdownSummary, renderMarkdown } from './markdown.js';
 import { attachmentSection } from './attachments.js';
+import { openLightbox } from './lightbox.js';
 
 const DEL_PATH = { experiment: '/experiments/', run: '/runs/',
                    group: '/groups/', attempt: '/attempts/' };
@@ -14,14 +15,14 @@ export function renderDetail(ctx) {
     root.innerHTML = '<p class="placeholder">选择左侧节点查看详情</p>';
     return;
   }
-  const { type, id } = state.selected;
-  const obj = ctx.getObject(type, id);
+  const { id } = state.selected;
+  const obj = ctx.getObject('experiment', id);
   if (!obj) {
     root.innerHTML = '<p class="placeholder">数据未加载</p>';
     return;
   }
-  if (state.editing) return renderEditForm(ctx, root, type, obj);
-  renderView(ctx, root, type, obj);
+  if (state.editing) return experimentForm(ctx, root, obj);
+  renderExperimentView(ctx, root, obj);
 }
 
 /* ---------- 小工具 ---------- */
@@ -108,6 +109,7 @@ function buttons(form, submitText, onCancel) {
   bar.appendChild(ok);
   bar.appendChild(cancel);
   form.appendChild(bar);
+  return bar;
 }
 
 /* ---------- 标签编辑器（datalist 补全 + 回车成 chip） ---------- */
@@ -186,77 +188,361 @@ function varsEditor(initial) {
 
 /* ---------- 详情查看 ---------- */
 
-function renderView(ctx, root, type, obj) {
-  root.appendChild(el('h2', null, `${ctx.LABEL[type]}：${titleOf(type, obj)}`));
+function renderExperimentView(ctx, root, obj) {
+  root.appendChild(el('h2', null, `实验：${obj.name}`));
   const dl = el('dl', 'fields');
-
-  if (type === 'experiment') {
-    fieldRow(dl, '目的', obj.purpose);
-    fieldRow(dl, '方法', obj.method);
-    fieldRow(dl, '自变量', (obj.independent_vars || [])
-      .map(v => `${v.name}（默认 ${v.default || '—'}）`).join('；'));
-    fieldRow(dl, '因变量', (obj.dependent_vars || []).join('；'));
-    chipList(dl, '分类标签', obj.category_tags);
-    mdRow(dl, '结论', obj.conclusion);
-    chipList(dl, '评价标签', obj.evaluation_tags);
-    fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
-    fieldRow(dl, '更新时间', formatDateTime(obj.updated_at));
-  } else if (type === 'run') {
-    fieldRow(dl, '名称', obj.name);
-    mdRow(dl, '摘要', obj.summary);
-    chipList(dl, '评价标签', obj.evaluation_tags);
-    fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
-  } else if (type === 'group') {
-    fieldRow(dl, '序号', '#' + obj.seq_no);
-    fieldRow(dl, '自变量取值', Object.entries(obj.variable_values || {})
-      .map(([k, v]) => `${k} = ${v}`).join('；'));
-    mdRow(dl, '摘要', obj.summary);
-    chipList(dl, '评价标签', obj.evaluation_tags);
-    fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
-  } else {
-    fieldRow(dl, '编号', '#' + obj.seq_no);
-    fieldRow(dl, '开始时间', formatDateTime(obj.started_at));
-    fieldRow(dl, '数据目录', obj.data_path);
-    mdRow(dl, '测试结果', obj.summary);
-    chipList(dl, '评价标签', obj.evaluation_tags);
-  }
+  fieldRow(dl, '目的', obj.purpose);
+  fieldRow(dl, '方法', obj.method);
+  fieldRow(dl, '自变量', (obj.independent_vars || [])
+    .map(v => `${v.name}（默认 ${v.default || '—'}）`).join('；'));
+  fieldRow(dl, '因变量', (obj.dependent_vars || []).join('；'));
+  chipList(dl, '分类标签', obj.category_tags);
+  mdRow(dl, '结论', obj.conclusion);
+  chipList(dl, '评价标签', obj.evaluation_tags);
+  fieldRow(dl, '创建时间', formatDateTime(obj.created_at));
+  fieldRow(dl, '更新时间', formatDateTime(obj.updated_at));
   root.appendChild(dl);
 
-  root.appendChild(attachmentSection(ctx, type, obj, async () => {
-    // Attempt 的数据内嵌在其 Group 详情里，必须刷新 Group 才能拿到新附件列表
-    if (type === 'attempt') {
-      await ctx.fetchDetail('group', obj.group_id, true);
-      await ctx.refreshAll();
-      await ctx.select('attempt', obj.id);
-    } else {
-      ctx.state.details.delete(ctx.key(type, obj.id));
-      await ctx.refreshAll();
-      await ctx.select(type, obj.id);
-    }
-  }));
-
   const bar = el('div', 'actions');
-  if (type === 'group') {
-    const btn = el('button', 'primary', '＋ 新建 Attempt');
-    btn.onclick = () => createAttempt(ctx, obj.id);
-    bar.appendChild(btn);
-  } else if (type === 'experiment' || type === 'run') {
-    const childType = type === 'experiment' ? 'run' : 'group';
-    const btn = el('button', 'primary',
-      `＋ 新建 ${childType === 'run' ? 'Run' : 'Group'}`);
-    btn.onclick = () => {
-      ctx.state.form = { type: childType, parentId: obj.id };
-      ctx.renderAll();
-    };
-    bar.appendChild(btn);
-  }
+  const create = el('button', 'primary', '＋ 新建 Attempt');
+  create.onclick = () => ctx.openDrawer({ kind: 'new-attempt', experimentId: obj.id });
+  bar.appendChild(create);
   const edit = el('button', null, '编辑');
   edit.onclick = () => { ctx.state.editing = true; ctx.renderAll(); };
   bar.appendChild(edit);
   const del = el('button', 'danger', '删除');
-  del.onclick = () => confirmDelete(ctx, type, obj);
+  del.onclick = () => confirmDelete(ctx, 'experiment', obj);
   bar.appendChild(del);
   root.appendChild(bar);
+
+  renderAttemptOverview(ctx, root, obj.id);
+}
+
+function groupDescription(group) {
+  const values = Object.entries(group.variable_values || {})
+    .map(([name, value]) => `${name}=${value}`).join(', ');
+  return `Group #${group.seq_no}${values ? `（${values}）` : ''}`;
+}
+
+function renderAttemptOverview(ctx, root, experimentId) {
+  const section = el('section', 'attempt-overview');
+  section.appendChild(el('h3', null, 'Attempts'));
+  const overview = ctx.state.overviews.get(experimentId);
+  if (!overview) {
+    section.appendChild(el('p', 'placeholder', '正在加载 Attempt…'));
+    root.appendChild(section);
+    return;
+  }
+
+  const selected = ctx.state.comboFilters.get(experimentId) || new Set();
+  const picker = document.createElement('details');
+  picker.className = 'combo-picker';
+  const pickerSummary = document.createElement('summary');
+  picker.appendChild(pickerSummary);
+  const menu = el('div', 'combo-menu');
+  const menuActions = el('div', 'combo-menu-actions');
+  const selectAll = el('button', null, '全选');
+  selectAll.type = 'button';
+  const clearAll = el('button', null, '清空');
+  clearAll.type = 'button';
+  menuActions.append(selectAll, clearAll);
+  menu.appendChild(menuActions);
+  const checkboxes = [];
+
+  let lastRunId = null;
+  for (const combo of overview.combinations) {
+    if (combo.run.id !== lastRunId) {
+      menu.appendChild(el('div', 'combo-run-name', combo.run.name));
+      lastRunId = combo.run.id;
+    }
+    const label = el('label', 'combo-option');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selected.has(combo.key);
+    checkbox.onchange = () => {
+      checkbox.checked ? selected.add(combo.key) : selected.delete(combo.key);
+      updateSummary();
+      renderCards();
+    };
+    label.append(checkbox, document.createTextNode(groupDescription(combo.group)));
+    menu.appendChild(label);
+    checkboxes.push({ checkbox, key: combo.key });
+  }
+  picker.appendChild(menu);
+  section.appendChild(picker);
+
+  const cards = el('div', 'attempt-cards');
+  section.appendChild(cards);
+  root.appendChild(section);
+
+  function updateSummary() {
+    pickerSummary.textContent = overview.combinations.length
+      ? `筛选 Run / Group（已选 ${selected.size}/${overview.combinations.length}）`
+      : '筛选 Run / Group（暂无组合）';
+  }
+
+  function setAll(checked) {
+    for (const item of checkboxes) {
+      item.checkbox.checked = checked;
+      checked ? selected.add(item.key) : selected.delete(item.key);
+    }
+    updateSummary();
+    renderCards();
+  }
+
+  selectAll.onclick = () => setAll(true);
+  clearAll.onclick = () => setAll(false);
+
+  function renderCards() {
+    cards.innerHTML = '';
+    const visible = overview.attempts
+      .filter(item => selected.has(item.comboKey))
+      .sort((a, b) => new Date(b.attempt.started_at) - new Date(a.attempt.started_at)
+        || b.attempt.id - a.attempt.id);
+    if (visible.length === 0) {
+      const message = overview.combinations.length && selected.size === 0
+        ? '请至少选择一个 Run / Group 组合'
+        : '所选组合中暂无 Attempt';
+      cards.appendChild(el('p', 'placeholder', message));
+      return;
+    }
+    for (const item of visible) cards.appendChild(attemptCard(ctx, item));
+  }
+
+  updateSummary();
+  renderCards();
+}
+
+function attemptCard(ctx, item) {
+  const { attempt, run, group } = item;
+  const card = el('article', 'attempt-card');
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.appendChild(el('h4', null,
+    `${run.name} / Group #${group.seq_no} / Attempt #${attempt.seq_no}`));
+  const meta = el('div', 'attempt-card-meta');
+  meta.appendChild(el('time', null, formatDateTime(attempt.started_at)));
+  for (const tag of attempt.evaluation_tags || []) {
+    meta.appendChild(el('span', 'chip chip-eval', tag));
+  }
+  card.appendChild(meta);
+
+  const summary = markdownSummary(attempt.summary);
+  card.appendChild(el('p', summary.text ? 'attempt-excerpt' : 'attempt-excerpt placeholder',
+    summary.text || '暂无测试结果'));
+  if (summary.images.length) {
+    const gallery = el('div', 'attempt-thumbnails');
+    summary.images.forEach((image, index) => {
+      const button = el('button', 'attempt-thumbnail');
+      button.type = 'button';
+      button.setAttribute('aria-label', `查看插图 ${index + 1}`);
+      const img = document.createElement('img');
+      img.src = image.src;
+      img.alt = image.alt || `Attempt 插图 ${index + 1}`;
+      button.appendChild(img);
+      button.onclick = event => {
+        event.stopPropagation();
+        openLightbox(summary.images, index);
+      };
+      gallery.appendChild(button);
+    });
+    card.appendChild(gallery);
+  }
+
+  const openBody = () => ctx.openDrawer({ kind: 'attempt-view', id: attempt.id });
+  card.onclick = openBody;
+  card.onkeydown = event => {
+    if (event.target === card && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      openBody();
+    }
+  };
+  return card;
+}
+
+function attemptContext(ctx, attemptId) {
+  for (const overview of ctx.state.overviews.values()) {
+    const hit = overview.attempts.find(item => item.attempt.id === attemptId);
+    if (hit) return hit;
+  }
+  const attempt = ctx.getObject('attempt', attemptId);
+  return attempt ? { attempt, run: null, group: null } : null;
+}
+
+export function renderDrawer(ctx) {
+  const drawer = document.getElementById('drawer');
+  const backdrop = document.getElementById('drawer-backdrop');
+  const root = document.getElementById('drawer-content');
+  root.innerHTML = '';
+  const state = ctx.state.drawer;
+  drawer.classList.toggle('hidden', !state);
+  backdrop.classList.toggle('hidden', !state);
+  if (!state) return;
+
+  if (state.kind === 'attempt-view') {
+    return renderAttemptBodyDrawer(ctx, root, state.id);
+  }
+  if (state.kind === 'new-attempt') {
+    const experiment = ctx.getObject('experiment', state.experimentId);
+    if (experiment) return newAttemptDrawer(ctx, root, experiment);
+  }
+  if (state.kind === 'edit') {
+    const obj = ctx.getObject(state.type, state.id);
+    if (!obj) {
+      root.appendChild(el('p', 'placeholder', '数据未加载'));
+      return;
+    }
+    if (state.type === 'run') return runForm(ctx, root, obj);
+    if (state.type === 'group') return groupEditForm(ctx, root, obj);
+    if (state.type === 'attempt') return attemptEditForm(ctx, root, obj);
+  }
+  root.appendChild(el('p', 'placeholder', '无法打开侧边栏内容'));
+}
+
+function renderAttemptBodyDrawer(ctx, root, attemptId) {
+  const item = attemptContext(ctx, attemptId);
+  if (!item) {
+    root.appendChild(el('p', 'placeholder', 'Attempt 数据未加载'));
+    return;
+  }
+  const { attempt, run, group } = item;
+  const title = run && group
+    ? `${run.name} / Group #${group.seq_no} / Attempt #${attempt.seq_no}`
+    : `Attempt #${attempt.seq_no}`;
+  root.appendChild(el('h2', null, title));
+  const meta = el('div', 'drawer-meta');
+  meta.appendChild(el('time', null, formatDateTime(attempt.started_at)));
+  for (const tag of attempt.evaluation_tags || []) {
+    meta.appendChild(el('span', 'chip chip-eval', tag));
+  }
+  root.appendChild(meta);
+  const body = el('section', 'attempt-body');
+  body.appendChild(renderMarkdown(attempt.summary || ''));
+  if (!attempt.summary) body.appendChild(el('p', 'placeholder', '暂无测试结果'));
+  root.appendChild(body);
+  const bar = el('div', 'actions');
+  const edit = el('button', 'primary', '编辑 Attempt');
+  edit.onclick = () => ctx.openDrawer({ kind: 'edit', type: 'attempt', id: attempt.id });
+  bar.appendChild(edit);
+  root.appendChild(bar);
+}
+
+function newAttemptDrawer(ctx, root, experiment) {
+  const overview = ctx.state.overviews.get(experiment.id) ||
+    { runs: [], combinations: [], attempts: [] };
+  const form = formShell(root, '新建 Attempt', submit);
+
+  const runSelect = document.createElement('select');
+  for (const run of overview.runs) {
+    const option = document.createElement('option');
+    option.value = String(run.id);
+    option.textContent = run.name;
+    runSelect.appendChild(option);
+  }
+  const newRunOption = document.createElement('option');
+  newRunOption.value = '__new__';
+  newRunOption.textContent = '＋ 新建 Run';
+  runSelect.appendChild(newRunOption);
+  if (runSelect.options.length === 1) runSelect.value = '__new__';
+  labeled(form, 'Run', runSelect);
+
+  const runName = textInput();
+  runName.placeholder = '新 Run 名称';
+  labeled(form, '新 Run 名称 *', runName);
+  const runNameField = runName.closest('.field');
+
+  const groupSelect = document.createElement('select');
+  labeled(form, 'Group', groupSelect);
+  const groupField = groupSelect.closest('.field');
+
+  const variableBox = el('div', 'new-group-fields');
+  const variableRows = (experiment.independent_vars || []).map(variable => {
+    const input = textInput(variable.default || '');
+    labeled(variableBox, variable.name, input);
+    return [variable.name, input];
+  });
+  if (variableRows.length === 0) {
+    variableBox.appendChild(el('p', 'placeholder', '该实验未定义自变量'));
+  }
+  form.appendChild(variableBox);
+
+  runSelect.onchange = updateChoices;
+  groupSelect.onchange = updateVariableVisibility;
+  updateChoices();
+  const actionBar = buttons(form, '创建 Attempt', () => ctx.closeDrawer());
+
+  function updateChoices() {
+    const creatingRun = runSelect.value === '__new__';
+    runNameField.classList.toggle('hidden', !creatingRun);
+    groupField.classList.toggle('hidden', creatingRun);
+    groupSelect.innerHTML = '';
+    if (!creatingRun) {
+      const runId = Number(runSelect.value);
+      for (const combo of overview.combinations.filter(item => item.run.id === runId)) {
+        const option = document.createElement('option');
+        option.value = String(combo.group.id);
+        option.textContent = groupDescription(combo.group);
+        groupSelect.appendChild(option);
+      }
+      const option = document.createElement('option');
+      option.value = '__new__';
+      option.textContent = '＋ 新建 Group';
+      groupSelect.appendChild(option);
+      if (groupSelect.options.length === 1) groupSelect.value = '__new__';
+    }
+    updateVariableVisibility();
+  }
+
+  function updateVariableVisibility() {
+    const creatingGroup = runSelect.value === '__new__' ||
+      groupSelect.value === '__new__';
+    variableBox.classList.toggle('hidden', !creatingGroup);
+  }
+
+  async function submit() {
+    const submitButton = actionBar.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      let runId;
+      if (runSelect.value === '__new__') {
+        const run = await API.post(`/experiments/${experiment.id}/runs`, {
+          name: runName.value.trim(),
+        });
+        runId = run.id;
+        ctx.state.expanded.add(ctx.key('experiment', experiment.id));
+      } else {
+        runId = Number(runSelect.value);
+      }
+
+      let groupId;
+      if (runSelect.value === '__new__' || groupSelect.value === '__new__') {
+        const variableValues = {};
+        for (const [name, input] of variableRows) variableValues[name] = input.value;
+        const group = await API.post(`/runs/${runId}/groups`, {
+          variable_values: variableValues,
+        });
+        groupId = group.id;
+        ctx.state.expanded.add(ctx.key('run', runId));
+      } else {
+        groupId = Number(groupSelect.value);
+      }
+
+      const attempt = await API.post(`/groups/${groupId}/attempts`);
+      ctx.state.expanded.add(ctx.key('experiment', experiment.id));
+      ctx.state.expanded.add(ctx.key('run', runId));
+      ctx.state.expanded.add(ctx.key('group', groupId));
+      const comboKey = `${runId}:${groupId}`;
+      if (!ctx.state.comboFilters.has(experiment.id)) {
+        ctx.state.comboFilters.set(experiment.id, new Set());
+      }
+      ctx.state.comboFilters.get(experiment.id).add(comboKey);
+      ctx.state.drawer = { kind: 'edit', type: 'attempt', id: attempt.id };
+      await ctx.refreshAll();
+    } catch (err) {
+      ctx.showToast(err.message);
+      submitButton.disabled = false;
+    }
+  }
 }
 
 /* ---------- 保存后的统一收尾 ---------- */
@@ -269,29 +555,26 @@ async function commitAndShow(ctx, type, id) {
   await ctx.select(type, id);
 }
 
-async function commitAndShowAttempt(ctx, attempt) {
-  ctx.state.form = null;
-  ctx.state.editing = false;
-  await ctx.fetchDetail('group', attempt.group_id, true);
-  ctx.state.expanded.add(ctx.key('group', attempt.group_id));
+async function finishDrawerEdit(ctx, type, obj) {
+  ctx.state.drawer = null;
+  ctx.state.details.delete(ctx.key(type, obj.id));
+  if (type === 'attempt') {
+    await ctx.fetchDetail('group', obj.group_id, true);
+  }
   await ctx.refreshAll();
-  await ctx.select('attempt', attempt.id);
+}
+
+function addDrawerDelete(ctx, bar, type, obj) {
+  const del = el('button', 'danger', '删除');
+  del.type = 'button';
+  del.onclick = () => confirmDelete(ctx, type, obj, true);
+  bar.appendChild(del);
 }
 
 /* ---------- 表单：创建与编辑 ---------- */
 
 function renderCreateForm(ctx, root) {
-  const { type, parentId } = ctx.state.form;
-  if (type === 'experiment') return experimentForm(ctx, root, null);
-  if (type === 'run') return runForm(ctx, root, parentId, null);
-  if (type === 'group') groupCreateForm(ctx, root, parentId);
-}
-
-function renderEditForm(ctx, root, type, obj) {
-  if (type === 'experiment') return experimentForm(ctx, root, obj);
-  if (type === 'run') return runForm(ctx, root, null, obj);
-  if (type === 'group') return groupEditForm(ctx, root, obj);
-  return attemptEditForm(ctx, root, obj);
+  if (ctx.state.form.type === 'experiment') return experimentForm(ctx, root, null);
 }
 
 function cancelForm(ctx) {
@@ -314,7 +597,8 @@ function experimentForm(ctx, root, obj) {
   labeled(form, '分类标签', cat.el);
   let conclusion, evalTags;
   if (!creating) {
-    conclusion = markdownField('结论', obj.conclusion, 'experiment', obj.id,
+    conclusion = markdownField('结论（支持 Markdown，可直接粘贴图片）',
+                               obj.conclusion, 'experiment', obj.id,
                                ctx.showToast);
     form.appendChild(conclusion.el);
     evalTags = tagEditor(obj.evaluation_tags);
@@ -344,61 +628,25 @@ function experimentForm(ctx, root, obj) {
   }
 }
 
-function runForm(ctx, root, parentId, obj) {
-  const creating = !obj;
-  const form = formShell(root, creating ? '新建 Run' : '编辑 Run', submit);
-  const name = labeled(form, '名称 *', textInput(obj ? obj.name : ''));
-  let summary, evalTags;
-  if (!creating) {
-    summary = markdownField('摘要', obj.summary, 'run', obj.id, ctx.showToast);
-    form.appendChild(summary.el);
-    evalTags = tagEditor(obj.evaluation_tags);
-    labeled(form, '评价标签', evalTags.el);
-  }
-  buttons(form, creating ? '创建' : '保存', () => cancelForm(ctx));
+function runForm(ctx, root, obj) {
+  const form = formShell(root, '编辑 Run', submit);
+  const name = labeled(form, '名称 *', textInput(obj.name));
+  const summary = markdownField('摘要（支持 Markdown，可直接粘贴图片）',
+                                obj.summary, 'run', obj.id, ctx.showToast);
+  form.appendChild(summary.el);
+  const evalTags = tagEditor(obj.evaluation_tags);
+  labeled(form, '评价标签', evalTags.el);
+  const bar = buttons(form, '保存', () => ctx.closeDrawer());
+  addDrawerDelete(ctx, bar, 'run', obj);
 
   async function submit() {
     try {
-      let saved;
-      if (creating) {
-        saved = await API.post(`/experiments/${parentId}/runs`,
-                               { name: name.value.trim() });
-        ctx.state.expanded.add(ctx.key('experiment', parentId));
-      } else {
-        saved = await API.patch('/runs/' + obj.id, {
-          name: name.value.trim(),
-          summary: summary.get(),
-          evaluation_tags: evalTags.get(),
-        });
-      }
-      await commitAndShow(ctx, 'run', saved.id);
-    } catch (err) { ctx.showToast(err.message); }
-  }
-}
-
-async function groupCreateForm(ctx, root, parentId) {
-  let tpl;
-  try {
-    tpl = await API.get(`/runs/${parentId}/new-group-template`);
-  } catch (err) { ctx.showToast(err.message); return; }
-  const form = formShell(root, '新建 Group（已预填实验默认条件）', submit);
-  const rows = Object.entries(tpl.variable_values).map(([k, v]) => {
-    const input = textInput(v);
-    labeled(form, k, input);
-    return [k, input];
-  });
-  if (rows.length === 0) form.appendChild(
-    el('p', 'placeholder', '该实验未定义自变量，可直接创建'));
-  buttons(form, '创建', () => cancelForm(ctx));
-
-  async function submit() {
-    const vv = {};
-    for (const [k, input] of rows) vv[k] = input.value;
-    try {
-      const saved = await API.post(`/runs/${parentId}/groups`,
-                                   { variable_values: vv });
-      ctx.state.expanded.add(ctx.key('run', parentId));
-      await commitAndShow(ctx, 'group', saved.id);
+      const saved = await API.patch('/runs/' + obj.id, {
+        name: name.value.trim(),
+        summary: summary.get(),
+        evaluation_tags: evalTags.get(),
+      });
+      await finishDrawerEdit(ctx, 'run', saved);
     } catch (err) { ctx.showToast(err.message); }
   }
 }
@@ -410,12 +658,8 @@ function groupEditForm(ctx, root, obj) {
     labeled(form, k, input);
     return [k, input];
   });
-  const summary = markdownField('摘要（综合各 Attempt 的结果）', obj.summary,
-                                'group', obj.id, ctx.showToast);
-  form.appendChild(summary.el);
-  const evalTags = tagEditor(obj.evaluation_tags);
-  labeled(form, '评价标签', evalTags.el);
-  buttons(form, '保存', () => cancelForm(ctx));
+  const bar = buttons(form, '保存', () => ctx.closeDrawer());
+  addDrawerDelete(ctx, bar, 'group', obj);
 
   async function submit() {
     const vv = {};
@@ -423,10 +667,8 @@ function groupEditForm(ctx, root, obj) {
     try {
       await API.patch('/groups/' + obj.id, {
         variable_values: vv,
-        summary: summary.get(),
-        evaluation_tags: evalTags.get(),
       });
-      await commitAndShow(ctx, 'group', obj.id);
+      await finishDrawerEdit(ctx, 'group', obj);
     } catch (err) { ctx.showToast(err.message); }
   }
 }
@@ -440,7 +682,14 @@ function attemptEditForm(ctx, root, obj) {
   form.appendChild(summary.el);
   const evalTags = tagEditor(obj.evaluation_tags);
   labeled(form, '评价标签', evalTags.el);
-  buttons(form, '保存', () => cancelForm(ctx));
+  const bar = buttons(form, '保存', () => ctx.closeDrawer());
+  addDrawerDelete(ctx, bar, 'attempt', obj);
+  root.appendChild(attachmentSection(ctx, 'attempt', obj, async () => {
+    await ctx.fetchDetail('group', obj.group_id, true);
+    await ctx.refreshAll();
+    ctx.state.drawer = { kind: 'edit', type: 'attempt', id: obj.id };
+    ctx.renderAll();
+  }));
 
   async function submit() {
     try {
@@ -449,23 +698,14 @@ function attemptEditForm(ctx, root, obj) {
         summary: summary.get(),
         evaluation_tags: evalTags.get(),
       });
-      await commitAndShowAttempt(ctx, saved);
+      await finishDrawerEdit(ctx, 'attempt', saved);
     } catch (err) { ctx.showToast(err.message); }
   }
 }
 
-/* ---------- 新建 Attempt（一键，无表单） ---------- */
-
-async function createAttempt(ctx, groupId) {
-  try {
-    const saved = await API.post(`/groups/${groupId}/attempts`);
-    await commitAndShowAttempt(ctx, saved);
-  } catch (err) { ctx.showToast(err.message); }
-}
-
 /* ---------- 删除（先统计后代数量再确认） ---------- */
 
-async function confirmDelete(ctx, type, obj) {
+async function confirmDelete(ctx, type, obj, preserveExperiment = false) {
   try {
     const counts = { run: 0, group: 0, attempt: 0 };
     await countDescendants(ctx, type, obj.id, counts);
@@ -478,7 +718,8 @@ async function confirmDelete(ctx, type, obj) {
     if (!window.confirm(
       `确定删除 ${ctx.LABEL[type]}「${name}」吗？${extra}\n此操作不可恢复。`)) return;
     await API.del(DEL_PATH[type] + obj.id);
-    ctx.state.selected = null;
+    if (!preserveExperiment || type === 'experiment') ctx.state.selected = null;
+    ctx.state.drawer = null;
     ctx.state.details.delete(ctx.key(type, obj.id));
     ctx.state.expanded.delete(ctx.key(type, obj.id));
     await ctx.refreshAll();

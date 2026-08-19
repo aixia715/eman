@@ -1,3 +1,4 @@
+from asyncio import Lock
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -20,6 +21,8 @@ from eman.routes import attachments as attachments_routes
 def create_app(db_path: str = "eman.db") -> FastAPI:
     app = FastAPI(title="eman", version=__version__)
     app.state.db = connect(db_path)
+    # 单连接必须串行使用；浏览器会并发请求卡片数据和多张缩略图。
+    app.state.db_lock = Lock()
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request, exc):

@@ -12,6 +12,19 @@ export function renderMarkdown(text) {
   return box;
 }
 
+export function markdownSummary(text) {
+  const box = renderMarkdown(text || '');
+  const images = [...box.querySelectorAll('img')].map(img => ({
+    src: img.getAttribute('src') || '',
+    alt: img.getAttribute('alt') || '',
+  })).filter(image => image.src);
+  for (const img of box.querySelectorAll('img')) img.remove();
+  return {
+    text: (box.textContent || '').replace(/\s+/g, ' ').trim(),
+    images,
+  };
+}
+
 let pasteSeq = 0;
 
 function insertAtCursor(ta, text) {

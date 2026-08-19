@@ -1,4 +1,5 @@
 import sqlite3
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request
@@ -87,8 +88,10 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def get_db(request: Request) -> sqlite3.Connection:
-    return request.app.state.db
+async def get_db(request: Request) -> AsyncIterator[sqlite3.Connection]:
+    # yield 依赖会持有锁直至响应发送完毕，StreamingResponse 读取 BLOB 时也包含在内。
+    async with request.app.state.db_lock:
+        yield request.app.state.db
 
 
 def fetch_or_404(db: sqlite3.Connection, table: str, row_id: int) -> sqlite3.Row:

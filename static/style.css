@@ -146,12 +146,13 @@ button { color: inherit; font: inherit; cursor: pointer; }
 }
 form .field { display: block; margin-bottom: 12px; }
 form .field > span { display: block; color: var(--muted); margin-bottom: 4px; }
-form input, form textarea {
+form input, form textarea, form select {
   width: 100%; max-width: 560px; padding: 5px 8px;
   border: 1px solid var(--border); border-radius: 6px; font: inherit;
   color: var(--text); background: var(--control-bg);
 }
 form textarea { min-height: 72px; }
+button:disabled { cursor: wait; opacity: .6; }
 .var-row { display: flex; gap: 6px; margin-bottom: 6px; max-width: 560px; }
 .tag-editor .chips { margin-bottom: 4px; }
 
@@ -199,3 +200,108 @@ form textarea { min-height: 72px; }
 }
 .attachment-size { color: var(--subtle); font-size: .85em; }
 .attachment-list button { font-size: .85em; padding: .1em .5em; }
+
+/* Experiment 下的组合筛选与 Attempt 卡片 */
+.attempt-overview { margin-top: 30px; border-top: 1px solid var(--border); padding-top: 18px; }
+.attempt-overview h3 { margin: 0 0 12px; }
+.combo-picker { position: relative; margin-bottom: 14px; }
+.combo-picker > summary {
+  min-width: 260px; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--control-bg); cursor: pointer;
+}
+.combo-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 8;
+  width: min(420px, 75vw); max-height: 340px; overflow-y: auto;
+  padding: 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--control-bg); box-shadow: 0 8px 24px var(--shadow);
+}
+.combo-menu-actions { display: flex; gap: 8px; padding-bottom: 6px; }
+.combo-menu-actions button {
+  padding: 3px 9px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--control-bg);
+}
+.combo-run-name { margin-top: 7px; padding: 5px 4px; font-weight: 650; }
+.combo-option {
+  display: flex; align-items: flex-start; gap: 7px; padding: 5px 8px;
+  border-radius: 5px; cursor: pointer;
+}
+.combo-option:hover { background: var(--hover); }
+.combo-option input { width: auto; margin-top: 2px; }
+.attempt-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.attempt-card {
+  min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--control-bg); box-shadow: 0 2px 8px var(--shadow);
+  cursor: pointer;
+}
+.attempt-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.attempt-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.attempt-card h4 { margin: 0 0 8px; line-height: 1.4; }
+.attempt-card-meta, .drawer-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: var(--subtle);
+  font-size: 12px;
+}
+.attempt-excerpt {
+  display: -webkit-box; margin: 10px 0 0; overflow: hidden;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 5;
+  line-clamp: 5; line-height: 1.55;
+}
+.attempt-thumbnails { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.attempt-thumbnail {
+  width: 92px; height: 68px; padding: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+}
+.attempt-thumbnail img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* 右侧编辑/查看抽屉 */
+.drawer-backdrop {
+  position: fixed; inset: 0; z-index: 20; background: rgb(0 0 0 / 35%);
+}
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 30;
+  width: min(560px, 92vw); overflow-y: auto; padding: 24px 28px 32px;
+  border-left: 1px solid var(--border); background: var(--bg);
+  box-shadow: -10px 0 30px var(--shadow);
+}
+.drawer-close {
+  position: sticky; top: 0; float: right; z-index: 1;
+  width: 34px; height: 34px; padding: 0; border: 1px solid var(--border);
+  border-radius: 50%; background: var(--control-bg); font-size: 22px; line-height: 1;
+}
+.drawer-close:hover { background: var(--hover); }
+.drawer h2 { margin-top: 6px; padding-right: 42px; }
+.drawer form input, .drawer form textarea, .drawer form select,
+.drawer .md-preview { max-width: none; }
+.drawer-meta { margin-bottom: 18px; }
+.attempt-body { margin-top: 16px; }
+.new-group-fields {
+  margin: 4px 0 14px; padding: 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface);
+}
+
+/* 插图灯箱 */
+.lightbox {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center;
+  justify-content: center; padding: 54px 70px; background: rgb(0 0 0 / 88%);
+}
+.lightbox.hidden { display: none; }
+.lightbox figure { max-width: 100%; max-height: 100%; margin: 0; text-align: center; }
+.lightbox figure img { max-width: 100%; max-height: calc(100vh - 110px); object-fit: contain; }
+.lightbox figcaption { margin-top: 8px; color: #fff; }
+.lightbox-close, .lightbox-nav {
+  position: fixed; z-index: 1; border: none; background: rgb(0 0 0 / 35%);
+  color: #fff; border-radius: 50%;
+}
+.lightbox-close { top: 16px; right: 20px; width: 42px; height: 42px; font-size: 30px; }
+.lightbox-nav { top: 50%; width: 48px; height: 64px; font-size: 44px; transform: translateY(-50%); }
+.lightbox-previous { left: 14px; }
+.lightbox-next { right: 14px; }
+
+@media (max-width: 760px) {
+  .sidebar { width: 42vw; min-width: 210px; }
+  .detail { padding: 18px 58px 18px 18px; }
+  .attempt-cards { grid-template-columns: 1fr; }
+  .lightbox { padding: 54px 16px; }
+}

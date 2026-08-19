@@ -72,6 +72,19 @@ def test_write_failure_leaves_no_half_row(db):
     assert db.execute("SELECT COUNT(*) c FROM attachment_blob").fetchone()["c"] == 0
 
 
+def test_write_failure_on_short_read_leaves_no_half_row(db):
+    """reader 产出字节数少于声明的 size 时，zeroblob 尾部会残留 0 字节且函数
+    仍会“成功”返回——必须显式校验并走补偿删除，不留半截记录。"""
+    _, _, _, aid = _seed_attempt(db)
+
+    with pytest.raises(ValueError):
+        create_attachment(db, "attempt", aid, "short.bin",
+                          "application/octet-stream",
+                          io.BytesIO(b"xx"), 5)  # 声明 5 字节，实际只给 2 字节
+    assert db.execute("SELECT COUNT(*) c FROM attachment").fetchone()["c"] == 0
+    assert db.execute("SELECT COUNT(*) c FROM attachment_blob").fetchone()["c"] == 0
+
+
 def test_count_references_ignores_id_prefix_collision(db):
     """LIKE '%/api/attachments/7%' 会误命中 /api/attachments/70，必须排除。"""
     _, _, _, aid = _seed_attempt(db)

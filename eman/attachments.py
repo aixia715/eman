@@ -24,9 +24,15 @@ def create_attachment(db: sqlite3.Connection, entity_type: str, entity_id: int,
                " VALUES (?, zeroblob(?))", (aid, size))
     db.commit()
     try:
+        written = 0
         with db.blobopen("attachment_blob", "data", aid) as blob:
             while chunk := reader.read(CHUNK):
                 blob.write(chunk)
+                written += len(chunk)
+        # reader 产出的字节数若少于声明的 size，zeroblob 尾部会残留 0 字节而
+        # 函数仍返回成功——数据静默损坏，必须显式校验并让下面的补偿删除接手
+        if written != size:
+            raise ValueError(f"附件写入不完整：期望 {size} 字节，实际 {written} 字节")
         db.commit()
     except Exception:
         # 上面已 commit，事务回滚兜不住，必须显式补偿删除，

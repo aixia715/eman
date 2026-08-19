@@ -188,7 +188,7 @@ def test_references_counts_body_usages(client, make_attempt):
     assert client.get(f"{url}/references").json() == {"count": 0}
 
     client.patch(f"/api/attempts/{a['id']}",
-                 json={"summary": f"见 ![]({url}) 和 ![]({url})"})
+                 json={"description": f"见 ![]({url}) 和 ![]({url})"})
     assert client.get(f"{url}/references").json() == {"count": 2}
 
 
@@ -198,7 +198,7 @@ def test_references_ignores_longer_id_prefix(client, make_attempt):
     att = _upload(client, f"/api/attempts/{a['id']}/attachments").json()
     aid = att["id"]
     client.patch(f"/api/attempts/{a['id']}",
-                 json={"summary": f"![](/api/attachments/{aid}0)"})
+                 json={"description": f"![](/api/attachments/{aid}0)"})
     assert client.get(f"/api/attachments/{aid}/references").json() == {"count": 0}
 
 

@@ -1,24 +1,65 @@
 import { marked } from './vendor/marked.esm.js';
 import { refUrl, uploadAttachment } from './attachments.js';
+import { openLightbox } from './lightbox.js';
 
 // breaks: true 是必须的——Markdown 规范里单个换行不产生换行，
 // 不开启的话第一版留下的纯文本记录渲染后会连成一段
 marked.use({ breaks: true, gfm: true });
 
-export function renderMarkdown(text) {
+function parseMarkdown(text) {
   const box = document.createElement('div');
   box.className = 'markdown';
   box.innerHTML = marked.parse(text || '');
   return box;
 }
 
-export function markdownSummary(text) {
-  const box = renderMarkdown(text || '');
+function extractImages(box) {
   const images = [...box.querySelectorAll('img')].map(img => ({
     src: img.getAttribute('src') || '',
     alt: img.getAttribute('alt') || '',
   })).filter(image => image.src);
   for (const img of box.querySelectorAll('img')) img.remove();
+  // Markdown 图片常被 <p> 或 <a> 包裹；图片移走后清理遗留的空容器。
+  for (const node of box.querySelectorAll('a')) {
+    if (!node.textContent.trim() && node.children.length === 0) node.remove();
+  }
+  for (const node of box.querySelectorAll('p')) {
+    if (!node.textContent.trim() && node.children.length === 0) node.remove();
+  }
+  return images;
+}
+
+function thumbnailGallery(images) {
+  const gallery = document.createElement('div');
+  gallery.className = 'attempt-thumbnails markdown-thumbnails';
+  images.forEach((item, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'attempt-thumbnail';
+    button.setAttribute('aria-label', `查看插图 ${index + 1}`);
+    const image = document.createElement('img');
+    image.src = item.src;
+    image.alt = item.alt || `Markdown 插图 ${index + 1}`;
+    button.appendChild(image);
+    button.onclick = event => {
+      event.stopPropagation();
+      openLightbox(images, index);
+    };
+    gallery.appendChild(button);
+  });
+  return gallery;
+}
+
+export function renderMarkdown(text) {
+  const box = parseMarkdown(text);
+  const images = extractImages(box);
+  if (images.length) box.appendChild(thumbnailGallery(images));
+  return box;
+}
+
+export function markdownSummary(text) {
+  const box = parseMarkdown(text);
+  const images = extractImages(box);
   return {
     text: (box.textContent || '').replace(/\s+/g, ' ').trim(),
     images,

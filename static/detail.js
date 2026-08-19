@@ -186,6 +186,54 @@ function varsEditor(initial) {
   };
 }
 
+function resultEditor(initial) {
+  const wrap = el('div', 'result-editor');
+  const rows = [];
+  const addBtn = el('button', null, '＋ 添加测试结果');
+  addBtn.type = 'button';
+  addBtn.onclick = () => addRow();
+  wrap.appendChild(addBtn);
+
+  function addRow(name = '', value = '') {
+    const row = el('div', 'result-row');
+    const nameInput = textInput(name);
+    nameInput.placeholder = '因变量名称';
+    const valueInput = textInput(value);
+    valueInput.placeholder = '测试值';
+    const remove = el('button', 'chip-x', '×');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', '删除测试结果');
+    remove.onclick = () => row.remove();
+    row.append(nameInput, valueInput, remove);
+    row._get = () => ({
+      name: nameInput.value.trim(),
+      value: valueInput.value,
+    });
+    rows.push(row);
+    wrap.insertBefore(row, addBtn);
+  }
+
+  for (const result of initial || []) addRow(result.name, result.value);
+  return {
+    el: wrap,
+    get: () => rows.filter(row => row.isConnected).map(row => row._get())
+      .filter(result => result.name),
+  };
+}
+
+function resultTable(results) {
+  const table = el('table', 'result-table');
+  const tbody = document.createElement('tbody');
+  for (const result of results || []) {
+    const row = document.createElement('tr');
+    row.append(el('th', null, result.name),
+               el('td', null, result.value || '—'));
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  return table;
+}
+
 /* ---------- 详情查看 ---------- */
 
 function renderExperimentView(ctx, root, obj) {
@@ -327,12 +375,18 @@ function attemptCard(ctx, item) {
   }
   card.appendChild(meta);
 
-  const summary = markdownSummary(attempt.summary);
-  card.appendChild(el('p', summary.text ? 'attempt-excerpt' : 'attempt-excerpt placeholder',
-    summary.text || '暂无测试结果'));
-  if (summary.images.length) {
+  const results = el('section', 'attempt-card-results');
+  results.appendChild(el('h5', null, '测试结果'));
+  if (attempt.results?.length) results.appendChild(resultTable(attempt.results));
+  else results.appendChild(el('p', 'placeholder', '暂无测试结果'));
+  card.appendChild(results);
+
+  const description = markdownSummary(attempt.description);
+  card.appendChild(el('p', description.text ? 'attempt-excerpt' : 'attempt-excerpt placeholder',
+    description.text || '暂无说明'));
+  if (description.images.length) {
     const gallery = el('div', 'attempt-thumbnails');
-    summary.images.forEach((image, index) => {
+    description.images.forEach((image, index) => {
       const button = el('button', 'attempt-thumbnail');
       button.type = 'button';
       button.setAttribute('aria-label', `查看插图 ${index + 1}`);
@@ -342,7 +396,7 @@ function attemptCard(ctx, item) {
       button.appendChild(img);
       button.onclick = event => {
         event.stopPropagation();
-        openLightbox(summary.images, index);
+        openLightbox(description.images, index);
       };
       gallery.appendChild(button);
     });
@@ -416,9 +470,13 @@ function renderAttemptBodyDrawer(ctx, root, attemptId) {
     meta.appendChild(el('span', 'chip chip-eval', tag));
   }
   root.appendChild(meta);
+  root.appendChild(el('h3', null, '测试结果'));
+  if (attempt.results?.length) root.appendChild(resultTable(attempt.results));
+  else root.appendChild(el('p', 'placeholder', '暂无测试结果'));
+  root.appendChild(el('h3', 'drawer-section-title', '说明'));
   const body = el('section', 'attempt-body');
-  body.appendChild(renderMarkdown(attempt.summary || ''));
-  if (!attempt.summary) body.appendChild(el('p', 'placeholder', '暂无测试结果'));
+  body.appendChild(renderMarkdown(attempt.description || ''));
+  if (!attempt.description) body.appendChild(el('p', 'placeholder', '暂无说明'));
   root.appendChild(body);
   const bar = el('div', 'actions');
   const edit = el('button', 'primary', '编辑 Attempt');
@@ -677,9 +735,12 @@ function attemptEditForm(ctx, root, obj) {
   const form = formShell(root, `编辑 Attempt #${obj.seq_no}`, submit);
   const dataPath = labeled(form,
     '数据保存目录（大体积原始数据放这里，应用只记路径）', textInput(obj.data_path));
-  const summary = markdownField('测试结果（支持 Markdown，可直接粘贴截图）',
-                                obj.summary, 'attempt', obj.id, ctx.showToast);
-  form.appendChild(summary.el);
+  const results = resultEditor(obj.results);
+  labeled(form, '测试结果（因变量名称 + 测试值）', results.el);
+  const description = markdownField('说明（支持 Markdown，可直接粘贴截图）',
+                                    obj.description, 'attempt', obj.id,
+                                    ctx.showToast);
+  form.appendChild(description.el);
   const evalTags = tagEditor(obj.evaluation_tags);
   labeled(form, '评价标签', evalTags.el);
   const bar = buttons(form, '保存', () => ctx.closeDrawer());
@@ -695,7 +756,8 @@ function attemptEditForm(ctx, root, obj) {
     try {
       const saved = await API.patch('/attempts/' + obj.id, {
         data_path: dataPath.value,
-        summary: summary.get(),
+        results: results.get(),
+        description: description.get(),
         evaluation_tags: evalTags.get(),
       });
       await finishDrawerEdit(ctx, 'attempt', saved);

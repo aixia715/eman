@@ -83,7 +83,13 @@ export function attachmentSection(ctx, entityType, obj, onChange) {
     try {
       await uploadAttachment(entityType, obj.id, file);
       await onChange();
-    } catch (err) { ctx.showToast(err.message); }
+    } catch (err) {
+      ctx.showToast(err.message);
+    } finally {
+      // 失败路径下 picker 不会被 onChange() 的重建换掉，必须手动清空 value，
+      // 否则用户排障后再选同一个文件浏览器不会触发 change 事件，表现为静默无响应
+      picker.value = '';
+    }
   };
   box.appendChild(picker);
   return box;

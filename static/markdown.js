@@ -78,8 +78,9 @@ export function markdownField(label, value, entityType, entityId, onError) {
     insertAtCursor(ta, `![${token}]()`);
     try {
       const saved = await uploadAttachment(entityType, entityId, file);
+      // 空 alt：文件名含 ] ( [ 会破坏 Markdown 语法，且与设计 §2.5 一致
       ta.value = ta.value.replace(`![${token}]()`,
-        `![${saved.filename}](${refUrl(saved.id)})`);
+        `![](${refUrl(saved.id)})`);
     } catch (err) {
       ta.value = ta.value.replace(`![${token}]()`, '');
       onError(err.message);

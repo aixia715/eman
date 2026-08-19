@@ -1,0 +1,15 @@
+services:
+  eman:
+    build: .
+    image: eman
+    container_name: eman
+    ports:
+      # 宿主机 8000 → 容器 8000，浏览器打开 http://localhost:8000
+      - "8000:8000"
+    volumes:
+      # 数据库文件落在 /data/eman.db；改成 ./data:/data 可直接在仓库目录里看到它
+      - eman-data:/data
+    restart: unless-stopped
+
+volumes:
+  eman-data:

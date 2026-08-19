@@ -19,6 +19,35 @@ python3 -m venv .venv
 
 > 使用应用工厂模式（`--factory`），以便测试注入内存数据库。
 
+## Docker 运行
+
+当前版本 **v0.1.0**（`eman.__version__`，同时作为镜像标签与 FastAPI 文档里的版本号）。
+
+直接拉已发布的镜像：
+
+```bash
+docker run -d --name eman -p 8000:8000 -v eman-data:/data ghcr.io/aixia715/eman:0.1.0
+```
+
+或从源码自建：
+
+```bash
+docker build --build-arg VERSION=0.1.0 -t eman:0.1.0 .
+docker run -d --name eman -p 8000:8000 -v eman-data:/data eman:0.1.0
+```
+
+或者 `docker compose up -d`（见 `docker-compose.yml`）。
+
+> 镜像由 `.github/workflows/docker-publish.yml` 在推送 `v*` 标签时构建，
+> 推到 `ghcr.io/aixia715/eman`（标签 `0.1.0` / `0.1` / `latest`）。
+
+- 端口：容器内监听 **8000**，`-p 8000:8000` 映射到宿主机，浏览器打开 http://localhost:8000 。
+- 数据库：容器工作目录是 `/data`，SQLite 文件为 **`/data/eman.db`**，
+  必须挂载卷（`-v eman-data:/data`）才能在容器重建后保留数据。
+  想直接在宿主机看到该文件，把卷换成绑定挂载：`-v "$PWD/data:/data"`。
+- 备份：`docker cp eman:/data/eman.db ./eman-backup.db`，或直接复制绑定挂载目录里的文件。
+- 回收空间：停止容器后对该文件执行 `sqlite3 eman.db "VACUUM;"`。
+
 ## 数据与备份
 
 全部数据保存在仓库根目录的单个 `eman.db`（SQLite）文件中，

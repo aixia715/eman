@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 # 这个父类，注册在 fastapi.HTTPException（子类）上不会命中它
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from eman import __version__
 from eman.db import connect
 from eman.routes import experiments as experiments_routes
 from eman.routes import runs as runs_routes
@@ -17,7 +18,7 @@ from eman.routes import attachments as attachments_routes
 
 
 def create_app(db_path: str = "eman.db") -> FastAPI:
-    app = FastAPI(title="eman")
+    app = FastAPI(title="eman", version=__version__)
     app.state.db = connect(db_path)
 
     @app.exception_handler(StarletteHTTPException)

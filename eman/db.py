@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS attempt (
     started_at TEXT NOT NULL,
     data_path TEXT,
     summary TEXT,
-    results TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS tag (
@@ -81,12 +80,6 @@ def connect(db_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
-    # CREATE TABLE IF NOT EXISTS 不会给旧数据库补列；保留 summary 物理列承载
-    # 已有 Markdown“说明”，只为新测试结果补充有序 JSON 数组列。
-    columns = {row["name"] for row in conn.execute("PRAGMA table_info(attempt)")}
-    if "results" not in columns:
-        conn.execute("ALTER TABLE attempt ADD COLUMN results TEXT NOT NULL DEFAULT '[]'")
-        conn.commit()
     return conn
 
 
